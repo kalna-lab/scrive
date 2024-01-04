@@ -14,7 +14,6 @@ class Scrive
     ];
 
     private string $httpMethod = 'POST';
-
     private string $env = 'live';
     private array $headers = [];
     private array $body = [];
@@ -51,7 +50,7 @@ class Scrive
     /**
      * @throws \Exception
      */
-    public function authenticate(string $transactionId): bool
+    public function authenticate(string $transactionId): RedirectResponse
     {
         $this->endpoint .= $transactionId;
         $this->httpMethod = 'GET';
@@ -64,7 +63,7 @@ class Scrive
 
         NewScriveSignInEvent::dispatch($provider->completionData);
 
-        return (bool)$provider->completionData->userId;
+        return redirect(config('scrive.landing-path'));
     }
 
     public function sign()
