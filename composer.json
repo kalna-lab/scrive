@@ -1,0 +1,63 @@
+{
+    "name": "kalna-lab/scrive",
+    "description": "Laravel plugin to handle integration to Scrive",
+    "keywords": [
+        "laravel",
+        "plugin",
+        "scrive",
+        "mitid"
+    ],
+    "homepage": "https://github.com/kalna-lab/scrive",
+    "license": "MIT",
+    "type": "library",
+    "authors": [
+        {
+            "name": "Claus Hjort Bube",
+            "email": "claus@kalna.it",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "ext-curl": "*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.5.10",
+        "laravel/pint": "^1.4"
+    },
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/kalna-lab/scrive"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "KalnaLab\\Scrive\\": "src"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/phpunit",
+        "test-coverage": "vendor/bin/phpunit --coverage-html coverage"
+
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "KalnaLab\\Scrive\\ServiceProvider"
+            ],
+            "aliases": {
+                "Scrive": "KalnaLab\\Scrive\\Facade"
+            }
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
