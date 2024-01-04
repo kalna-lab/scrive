@@ -51,13 +51,13 @@
     "extra": {
         "laravel": {
             "providers": [
-                "KalnaLab\\Scrive\\ServiceProvider"
+                "KalnaLab\\Scrive\\ScriveServiceProvider"
             ],
             "aliases": {
-                "Scrive": "KalnaLab\\Scrive\\Facade"
+                "Scrive": "KalnaLab\\Scrive\\ScriveFacade"
             }
         }
     },
-    "minimum-stability": "dev",
+    "minimum-stability": "stable",
     "prefer-stable": true
 }
