@@ -54,7 +54,7 @@
                 "KalnaLab\\Scrive\\ScriveServiceProvider"
             ],
             "aliases": {
-                "Scrive": "KalnaLab\\Scrive\\ScriveFacade"
+                "Scrive": "KalnaLab\\Scrive\\Facade\\Scrive"
             }
         }
     },

@@ -69,7 +69,7 @@ class ScriveServiceProvider extends ServiceProvider
 
         // Register the main class to use with the facade
         $this->app->singleton('scrive', function () {
-            return new Scrive;
+            return new \KalnaLab\Scrive\Facades\Scrive();
         });
     }
 }
