@@ -12,7 +12,8 @@ class ScriveController extends Controller
     public function dkMitID()
     {
         $provider = new dkMitID();
-        return Scrive::authorize($provider);
+        $scrive = new Scrive();
+        return $scrive->authorize($provider);
     }
 
     /**
@@ -21,6 +22,7 @@ class ScriveController extends Controller
     public function authenticate(Request $request)
     {
         $transactionId = $request->get('transaction_id');
-        return Scrive::authenticate($transactionId);
+        $scrive = new Scrive();
+        return $scrive->authenticate($transactionId);
     }
 }

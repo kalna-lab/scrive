@@ -40,7 +40,7 @@ class Scrive
             'providerParameters' => [
                 self::METHOD['AUTH'] => $provider->toArray(),
             ],
-            'redirectUrl' => rtrim(config('app.url'), '/') . '/' . config('scrive.redirect-path'),
+            'redirectUrl' => rtrim(config('app.url'), '/') . '/' . ltrim(config('scrive.redirect-path'), '/'),
         ];
 
         $result = $this->executeCall();
@@ -74,7 +74,7 @@ class Scrive
     private function instantiateCurl(): void
     {
         $this->headers = [
-            'Authorization' => config('scrive.' . $this->env . '.token'),
+            'Authorization' => 'Bearer ' . config('scrive.' . $this->env . '.token'),
             'Content-type' => 'application/json',
         ];
 
