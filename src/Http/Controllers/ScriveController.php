@@ -9,8 +9,12 @@ use KalnaLab\Scrive\Scrive;
 
 class ScriveController extends Controller
 {
-    public function dkMitID(): RedirectResponse
+    public function dkMitID(Request $request): RedirectResponse
     {
+        if ($request->session()->exists('ScriveCompletionData')) {
+            return redirect(config('scrive.landing-path'));
+        }
+
         $provider = new dkMitID();
         $scrive = new Scrive();
         $accessUrl = $scrive->authorize($provider);
