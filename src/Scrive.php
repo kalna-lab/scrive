@@ -51,7 +51,7 @@ class Scrive
     /**
      * @throws \Exception
      */
-    public function authenticate(object|string $transactionId): bool
+    public function authenticate(string $transactionId): bool
     {
         $this->endpoint .= $transactionId;
         $this->httpMethod = 'GET';
