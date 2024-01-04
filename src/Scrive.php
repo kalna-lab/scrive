@@ -92,6 +92,7 @@ class Scrive
         $headers = [];
         if ($body) {
             $this->headers['Content-length'] = strlen(json_encode($body, JSON_UNESCAPED_SLASHES));
+            $this->headers['Content-Type'] = 'application/json';
         }
         foreach ($this->headers as $key => $value) {
             $headers[] = $key . ': ' . $value;
