@@ -26,7 +26,7 @@ class Scrive
         $this->endpoint = config('scrive.' . $this->env . '.base-path');
     }
 
-    public function authorize(Provider $provider): RedirectResponse
+    public function authorize(Provider $provider): string
     {
         $this->endpoint .= 'new';
         $this->httpMethod = 'POST';
@@ -44,13 +44,13 @@ class Scrive
 
         $result = $this->executeCall();
 
-        return redirect($result->accessUrl);
+        return $result->accessUrl;
     }
 
     /**
      * @throws \Exception
      */
-    public function authenticate(string $transactionId): RedirectResponse
+    public function authenticate(string $transactionId): void
     {
         $this->endpoint .= $transactionId;
         $this->httpMethod = 'GET';
@@ -62,8 +62,6 @@ class Scrive
         $provider = Provider::parse($payload);
 
         NewScriveSignInEvent::dispatch($provider->completionData);
-
-        return redirect(config('scrive.landing-path'));
     }
 
     public function sign()

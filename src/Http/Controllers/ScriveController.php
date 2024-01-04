@@ -9,20 +9,23 @@ use KalnaLab\Scrive\Scrive;
 
 class ScriveController extends Controller
 {
-    public function dkMitID()
+    public function dkMitID(): RedirectResponse
     {
         $provider = new dkMitID();
         $scrive = new Scrive();
-        return $scrive->authorize($provider);
+        $accessUrl = $scrive->authorize($provider);
+        return redirect($accessUrl);
     }
 
     /**
      * @throws \Exception
      */
-    public function authenticate(Request $request)
+    public function authenticate(Request $request): RedirectResponse
     {
         $transactionId = $request->get('transaction_id');
         $scrive = new Scrive();
-        return $scrive->authenticate($transactionId);
+        $scrive->authenticate($transactionId);
+
+        return redirect(config('scrive.landing-path'));
     }
 }
