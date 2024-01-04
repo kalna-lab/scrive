@@ -15,6 +15,9 @@ class ScriveController extends Controller
         return Scrive::authorize($provider);
     }
 
+    /**
+     * @throws \Exception
+     */
     public function authenticate(Request $request)
     {
         $transactionId = $request->get('transaction_id');
