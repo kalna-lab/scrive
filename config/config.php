@@ -5,7 +5,7 @@
  */
 return [
     'env' => env('SCRIVE_ENV', 'live'),
-    'redirect-path' => env('SCRIVE_REDIRECT_PATH', '/login'),
+    'redirect-path' => env('SCRIVE_CALLBACK_PATH', '/login'),
     'live' => [
         'token' => env('SCRIVE_TOKEN', ''),
         'base-path' => env('SCRIVE_PATH', 'https://eid.scrive.com/api/v1/transaction/'),
