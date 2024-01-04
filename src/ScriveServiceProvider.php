@@ -18,9 +18,6 @@ class ScriveServiceProvider extends ServiceProvider
      * @var array<class-string, array<int, class-string>>
      */
     protected $listen = [
-        FileCreated::class => [
-            SendNewFile::class,
-        ],
     ];
 
     /**
