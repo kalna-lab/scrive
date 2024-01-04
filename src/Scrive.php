@@ -75,7 +75,6 @@ class Scrive
     {
         $this->headers = [
             'Authorization' => 'Bearer ' . config('scrive.' . $this->env . '.token'),
-            'Content-type' => 'application/json',
         ];
 
         $this->curlObject = curl_init();
@@ -88,10 +87,12 @@ class Scrive
         curl_setopt($this->curlObject, CURLOPT_TIMEOUT, 30);
     }
 
-    private function setHeaders($body): void
+    private function setHeaders(array $body = []): void
     {
         $headers = [];
-        $this->headers['Content-length'] = strlen(json_encode($body, JSON_UNESCAPED_SLASHES));
+        if ($body) {
+            $this->headers['Content-length'] = strlen(json_encode($body, JSON_UNESCAPED_SLASHES));
+        }
         foreach ($this->headers as $key => $value) {
             $headers[] = $key . ': ' . $value;
         }
