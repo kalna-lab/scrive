@@ -4,9 +4,8 @@ namespace KalnaLab\Scrive\Resources\CompletionData;
 
 use Carbon\Carbon;
 
-class dkMitIDCompletionData
+class dkMitIDCompletionData extends CompletionData
 {
-    public string $providerName;
     public ?string $cpr;
     public ?Carbon $dateOfBirth;
     public ?string $employeeData;

@@ -6,11 +6,13 @@ use Carbon\Carbon;
 use KalnaLab\Scrive\Resources\AuthProviders\Enums\dkMitIDAction;
 use KalnaLab\Scrive\Resources\AuthProviders\Enums\dkMitIDLanguage;
 use KalnaLab\Scrive\Resources\AuthProviders\Enums\dkMitIDLevel;
+use KalnaLab\Scrive\Resources\CompletionData\CompletionData;
 use KalnaLab\Scrive\Resources\CompletionData\dkMitIDCompletionData;
 
 class dkMitID extends Provider
 {
-    public dkMitIDCompletionData $completionData;
+    /** @var dkMitIDCompletionData */
+    public CompletionData $completionData;
 
     public function __construct(
         public dkMitIDAction $action = dkMitIDAction::LogOn,

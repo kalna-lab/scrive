@@ -2,8 +2,12 @@
 
 namespace KalnaLab\Scrive\Resources\AuthProviders;
 
+use KalnaLab\Scrive\Resources\CompletionData\CompletionData;
+
 abstract class Provider
 {
+    public CompletionData $completionData;
+
     abstract public static function getProviderName();
 
     /**
@@ -19,6 +23,7 @@ abstract class Provider
         }
 
         $provider = app('KalnaLab\\Scrive\\Resources\\AuthProviders\\' . $payload->provider);
+
         return $provider::parse($payload);
     }
 
