@@ -13,12 +13,13 @@ class Scrive
         'SIGN' => 'sign',
     ];
 
+    private string $httpMethod = 'POST';
+
     private string $env = 'live';
-    private string $method = '';
     private array $headers = [];
+    private array $body = [];
     private \CurlHandle $curlObject;
     private string $endpoint;
-    private Provider $provider;
 
     public function __construct()
     {
@@ -28,11 +29,19 @@ class Scrive
 
     public function authorize(Provider $provider): RedirectResponse
     {
-        $this->provider = $provider;
         $this->endpoint .= 'new';
-        $this->method = self::METHOD['AUTH'];
+        $this->httpMethod = 'POST';
 
         $this->instantiateCurl();
+
+        $this->body = [
+            'method' => self::METHOD['AUTH'],
+            'provider' => $provider::getProviderName(),
+            'providerParameters' => [
+                self::METHOD['AUTH'] => $provider->toArray(),
+            ],
+            'redirectUrl' => rtrim(config('app.url'), '/') . '/' . config('scrive.redirect-path'),
+        ];
 
         $result = $this->executeCall();
 
@@ -42,21 +51,24 @@ class Scrive
     /**
      * @throws \Exception
      */
-    public function authenticate(object|string $payload): bool
+    public function authenticate(object|string $transactionId): bool
     {
-        if (is_string($payload)) {
-            $payload = json_decode($payload);
-        }
-        $this->provider = Provider::parse($payload);
+        $this->endpoint .= $transactionId;
+        $this->httpMethod = 'GET';
 
-        NewScriveSignInEvent::dispatch($this->provider->completionData);
+        $this->instantiateCurl();
 
-        return (bool)$this->provider->completionData->userId;
+        $payload = $this->executeCall();
+
+        $provider = Provider::parse($payload);
+
+        NewScriveSignInEvent::dispatch($provider->completionData);
+
+        return (bool)$provider->completionData->userId;
     }
 
     public function sign()
     {
-        return redirect($provider->getAuthorizationUrl());
     }
 
     private function instantiateCurl(): void
@@ -88,18 +100,14 @@ class Scrive
 
     private function executeCall(): array|object
     {
-        $body = [
-            'method' => $this->method,
-            'provider' => $this->provider::getProviderName(),
-            'providerParameters' => [
-                $this->method => $this->provider->toArray(),
-            ],
-            'redirectUrl' => rtrim(config('app.url'), '/') . '/' . config('scrive.redirect-path'),
-        ];
-        $this->setHeaders($body);
+        $this->setHeaders($this->body);
         curl_setopt($this->curlObject, CURLOPT_URL, $this->endpoint);
-        curl_setopt($this->curlObject, CURLOPT_CUSTOMREQUEST, 'POST');
-        curl_setopt($this->curlObject, CURLOPT_POSTFIELDS, json_encode($body, JSON_UNESCAPED_SLASHES));
+        if ($this->httpMethod === 'GET') {
+            curl_setopt($this->curlObject, CURLOPT_CUSTOMREQUEST, $this->httpMethod);
+        } elseif (in_array($this->httpMethod, ['POST', 'PATCH'])) {
+            curl_setopt($this->curlObject, CURLOPT_CUSTOMREQUEST, $this->httpMethod);
+            curl_setopt($this->curlObject, CURLOPT_POSTFIELDS, json_encode($this->body, JSON_UNESCAPED_SLASHES));
+        }
         curl_setopt($this->curlObject, CURLOPT_VERBOSE, true);
 
         $response = curl_exec($this->curlObject);
