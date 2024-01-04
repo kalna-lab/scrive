@@ -13,5 +13,6 @@ class NewScriveSignInEvent
 
     public function __construct(public CompletionData $payload)
     {
+        session(['ScriveCompletionData' => $payload]);
     }
 }
