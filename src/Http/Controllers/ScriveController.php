@@ -3,6 +3,7 @@
 namespace KalnaLab\Scrive\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Routing\Controller;
 use KalnaLab\Scrive\Resources\AuthProviders\dkMitID;
 use KalnaLab\Scrive\Scrive;
