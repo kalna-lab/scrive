@@ -23,6 +23,9 @@ class dkMitID extends Provider
         public string $referenceText = '',
         public bool $requestCPR = false,
     ) {
+        if (!$this->referenceText) {
+            $this->referenceText = config('scrive.reference-text');
+        }
     }
 
     public static function getProviderName(): string
