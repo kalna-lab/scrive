@@ -3,6 +3,7 @@
 namespace KalnaLab\Scrive\Resources\AuthProviders;
 
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 use KalnaLab\Scrive\Resources\AuthProviders\Enums\dkMitIDAction;
 use KalnaLab\Scrive\Resources\AuthProviders\Enums\dkMitIDLanguage;
 use KalnaLab\Scrive\Resources\AuthProviders\Enums\dkMitIDLevel;
@@ -15,14 +16,15 @@ class dkMitID extends Provider
     public CompletionData $completionData;
 
     public function __construct(
-        public dkMitIDAction $action = dkMitIDAction::LogOn,
-        public string $cpr = '',
-        public bool $employeeLogin = false,
+        public dkMitIDAction   $action = dkMitIDAction::LogOn,
+        public string          $cpr = '',
+        public bool            $employeeLogin = false,
         public dkMitIDLanguage $language = dkMitIDLanguage::Da,
-        public dkMitIDLevel $level = dkMitIDLevel::Substantial,
-        public string $referenceText = '',
-        public bool $requestCPR = false,
-    ) {
+        public dkMitIDLevel    $level = dkMitIDLevel::Substantial,
+        public string          $referenceText = '',
+        public bool            $requestCPR = false,
+    )
+    {
         if (!$this->referenceText) {
             $this->referenceText = config('scrive.reference-text');
         }
@@ -43,16 +45,21 @@ class dkMitID extends Provider
         }
 
         $instance = new self();
-        $completionData = $payload->providerInfo->{self::getProviderName()}->completionData;
 
-        $instance->completionData = new dkMitIDCompletionData();
-        $instance->completionData->providerName = self::getProviderName();
-        $instance->completionData->cpr = $completionData->cpr;
-        $instance->completionData->dateOfBirth = Carbon::parse($completionData->dateOfBirth);
-        $instance->completionData->employeeData = $completionData->employeeData;
-        $instance->completionData->ial = $completionData->ial;
-        $instance->completionData->identityName = $completionData->identityName;
-        $instance->completionData->userId = $completionData->userId;
+        try {
+            $completionData = $payload->providerInfo->{self::getProviderName()}->completionData;
+            $instance->completionData = new dkMitIDCompletionData();
+            $instance->completionData->providerName = self::getProviderName();
+            $instance->completionData->cpr = $completionData->cpr;
+            $instance->completionData->dateOfBirth = Carbon::parse($completionData->dateOfBirth);
+            $instance->completionData->employeeData = $completionData->employeeData;
+            $instance->completionData->ial = $completionData->ial;
+            $instance->completionData->identityName = $completionData->identityName;
+            $instance->completionData->userId = $completionData->userId;
+        } catch (\Exception $e) {
+            Log::error(__METHOD__ . ' (' . __LINE__ . '): ' . $e->getMessage() . "\nProviderName: " . self::getProviderName() . "\nPayload: " . json_encode($payload, JSON_PRETTY_PRINT));
+            throw new \Exception('No completionData found for ' . self::getProviderName());
+        }
 
         return $instance;
     }
