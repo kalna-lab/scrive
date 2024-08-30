@@ -7,6 +7,7 @@ use KalnaLab\Scrive\Resources\CompletionData\CompletionData;
 abstract class Provider
 {
     public CompletionData $completionData;
+    public bool $success = false;
 
     abstract public static function getProviderName();
 

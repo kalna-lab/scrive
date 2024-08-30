@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to `addon-abakion` will be documented in this file
+All notable changes to `Scrive` will be documented in this file
 
 ## 1.0.0 - 201X-XX-XX
 

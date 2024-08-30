@@ -29,8 +29,9 @@ class ScriveController extends Controller
     {
         $transactionId = $request->get('transaction_id');
         $scrive = new Scrive();
-        $scrive->authenticate($transactionId);
-
-        return redirect(config('scrive.landing-path'));
+        if ($scrive->authenticate($transactionId)) {
+            return redirect(config('scrive.landing-path'));
+        }
+        return redirect(config('scrive.failed-path'));
     }
 }

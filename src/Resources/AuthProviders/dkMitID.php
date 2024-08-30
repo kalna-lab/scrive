@@ -45,17 +45,22 @@ class dkMitID extends Provider
         }
 
         $instance = new self();
+        $instance->completionData = new dkMitIDCompletionData();
+        $instance->completionData->providerName = self::getProviderName();
+
+        if ($payload->status == 'failed') {
+            return $instance;
+        }
 
         try {
             $completionData = $payload->providerInfo->{self::getProviderName()}->completionData;
-            $instance->completionData = new dkMitIDCompletionData();
-            $instance->completionData->providerName = self::getProviderName();
             $instance->completionData->cpr = $completionData->cpr;
             $instance->completionData->dateOfBirth = Carbon::parse($completionData->dateOfBirth);
             $instance->completionData->employeeData = $completionData->employeeData;
             $instance->completionData->ial = $completionData->ial;
             $instance->completionData->identityName = $completionData->identityName;
             $instance->completionData->userId = $completionData->userId;
+            $instance->success = true;
         } catch (\Exception $e) {
             Log::error(__METHOD__ . ' (' . __LINE__ . '): ' . $e->getMessage() . "\nProviderName: " . self::getProviderName() . "\nPayload: " . json_encode($payload, JSON_PRETTY_PRINT));
             throw new \Exception('No completionData found for ' . self::getProviderName());
@@ -74,6 +79,7 @@ class dkMitID extends Provider
             'level' => $this->level,
             'referenceText' => $this->referenceText,
             'requestCPR' => $this->requestCPR,
+            'success' => $this->success,
         ];
     }
 
@@ -87,6 +93,7 @@ class dkMitID extends Provider
             'level' => $this->level,
             'referenceText' => $this->referenceText,
             'requestCPR' => $this->requestCPR,
+            'success' => $this->success,
         ]);
     }
 }

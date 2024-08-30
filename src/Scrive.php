@@ -2,7 +2,6 @@
 
 namespace KalnaLab\Scrive;
 
-use Illuminate\Http\RedirectResponse;
 use KalnaLab\Scrive\Events\NewScriveSignInEvent;
 use KalnaLab\Scrive\Resources\AuthProviders\Provider;
 
@@ -50,7 +49,7 @@ class Scrive
     /**
      * @throws \Exception
      */
-    public function authenticate(string $transactionId): void
+    public function authenticate(string $transactionId): bool
     {
         $this->endpoint .= $transactionId;
         $this->httpMethod = 'GET';
@@ -60,8 +59,11 @@ class Scrive
         $payload = $this->executeCall();
 
         $provider = Provider::parse($payload);
+        if ($provider->success) {
+            NewScriveSignInEvent::dispatch($provider->completionData);
+        }
 
-        NewScriveSignInEvent::dispatch($provider->completionData);
+        return $provider->success;
     }
 
     public function sign()
