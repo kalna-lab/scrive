@@ -3,6 +3,7 @@
 namespace KalnaLab\Scrive\Resources\CompletionData;
 
 use Carbon\Carbon;
+use KalnaLab\Scrive\Scrive;
 
 class dkMitIDCompletionData extends CompletionData
 {
@@ -15,18 +16,26 @@ class dkMitIDCompletionData extends CompletionData
 
     public function validateCPR(string $cpr): bool
     {
-        $this->init();
-        $this->endpoint .= $this->transactionId . '/dk/cpr-match';
-        $this->httpMethod = 'POST';
+        $scriveApi = new Scrive();
+        $scriveApi->endpoint .= $this->transactionId . '/dk/cpr-match';
+        $scriveApi->httpMethod = 'POST';
 
-        $this->instantiateCurl();
+        $scriveApi->instantiateCurl();
 
-        $this->body = [
+        $scriveApi->body = [
             'cpr' => $cpr,
         ];
 
-        $result = $this->executeCall();
+        $result = $scriveApi->executeCall();
 
-        return $result->isMatch;
+        if (property_exists($result, 'isMatch')) {
+            return $result->isMatch;
+        }
+
+        if (property_exists($result, 'err')) {
+            throw new \Exception($result->err);
+        }
+
+        return false;
     }
 }

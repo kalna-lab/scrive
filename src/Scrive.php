@@ -13,12 +13,12 @@ class Scrive
         'SIGN' => 'sign',
     ];
 
-    private string $httpMethod = 'POST';
-    private string $env = 'live';
-    private array $headers = [];
-    private array $body = [];
-    private \CurlHandle $curlObject;
-    private string $endpoint;
+    public string $httpMethod = 'POST';
+    public string $env = 'live';
+    public array $headers = [];
+    public array $body = [];
+    public \CurlHandle $curlObject;
+    public string $endpoint;
 
     public function __construct()
     {
@@ -72,7 +72,7 @@ class Scrive
     {
     }
 
-    private function instantiateCurl(): void
+    public function instantiateCurl(): void
     {
         $this->headers = [
             'Authorization' => 'Bearer ' . config('scrive.' . $this->env . '.token'),
@@ -88,7 +88,7 @@ class Scrive
         curl_setopt($this->curlObject, CURLOPT_TIMEOUT, 30);
     }
 
-    private function setHeaders(array $body = []): void
+    public function setHeaders(array $body = []): void
     {
         $headers = [];
         if ($body) {
@@ -101,7 +101,7 @@ class Scrive
         curl_setopt($this->curlObject, CURLOPT_HTTPHEADER, $headers);
     }
 
-    private function executeCall(): array|object
+    public function executeCall(): array|object
     {
         $this->setHeaders($this->body);
         curl_setopt($this->curlObject, CURLOPT_URL, $this->endpoint);
