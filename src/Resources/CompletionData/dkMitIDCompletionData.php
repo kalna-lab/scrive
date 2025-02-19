@@ -12,4 +12,20 @@ class dkMitIDCompletionData extends CompletionData
     public ?string $ial;
     public ?string $identityName;
     public string $userId;
+
+    public function validateCPR(string $cpr): bool
+    {
+        $this->endpoint .= $this->transactionId . '/dk/cpr-match';
+        $this->httpMethod = 'POST';
+
+        $this->instantiateCurl();
+
+        $this->body = [
+            'cpr' => $cpr,
+        ];
+
+        $result = $this->executeCall();
+
+        return $result->isMatch;
+    }
 }

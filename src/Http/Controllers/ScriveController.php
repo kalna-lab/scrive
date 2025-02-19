@@ -2,8 +2,8 @@
 
 namespace KalnaLab\Scrive\Http\Controllers;
 
-use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use KalnaLab\Scrive\Resources\AuthProviders\dkMitID;
 use KalnaLab\Scrive\Scrive;
@@ -19,6 +19,7 @@ class ScriveController extends Controller
         $provider = new dkMitID();
         $scrive = new Scrive();
         $accessUrl = $scrive->authorize($provider);
+
         return redirect($accessUrl);
     }
 
@@ -32,6 +33,7 @@ class ScriveController extends Controller
         if ($scrive->authenticate($transactionId)) {
             return redirect(config('scrive.landing-path'));
         }
+
         return redirect(config('scrive.failed-path'));
     }
 }

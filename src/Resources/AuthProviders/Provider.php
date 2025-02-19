@@ -6,7 +6,7 @@ use KalnaLab\Scrive\Resources\CompletionData\CompletionData;
 
 abstract class Provider
 {
-    public CompletionData $completionData;
+    public ?CompletionData $completionData = null;
     public bool $success = false;
 
     abstract public static function getProviderName();
@@ -26,6 +26,14 @@ abstract class Provider
         $provider = app('KalnaLab\\Scrive\\Resources\\AuthProviders\\' . $payload->provider);
 
         return $provider::parse($payload);
+    }
+
+    public function setTransactionId(string $transactionId): void
+    {
+        if (!$this->completionData) {
+            return;
+        }
+        $this->completionData->transactionId = $transactionId;
     }
 
     abstract public function toArray(): array;

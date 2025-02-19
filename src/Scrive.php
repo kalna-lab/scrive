@@ -4,6 +4,7 @@ namespace KalnaLab\Scrive;
 
 use KalnaLab\Scrive\Events\NewScriveSignInEvent;
 use KalnaLab\Scrive\Resources\AuthProviders\Provider;
+use KalnaLab\Scrive\Resources\CompletionData\CompletionData;
 
 class Scrive
 {
@@ -60,6 +61,7 @@ class Scrive
 
         $provider = Provider::parse($payload);
         if ($provider->success) {
+            $provider->setTransactionId($transactionId);
             NewScriveSignInEvent::dispatch($provider->completionData);
         }
 

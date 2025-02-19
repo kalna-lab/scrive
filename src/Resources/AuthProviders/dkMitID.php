@@ -13,18 +13,17 @@ use KalnaLab\Scrive\Resources\CompletionData\dkMitIDCompletionData;
 class dkMitID extends Provider
 {
     /** @var dkMitIDCompletionData */
-    public CompletionData $completionData;
+    public ?CompletionData $completionData = null;
 
     public function __construct(
-        public dkMitIDAction   $action = dkMitIDAction::LogOn,
-        public string          $cpr = '',
-        public bool            $employeeLogin = false,
+        public dkMitIDAction $action = dkMitIDAction::LogOn,
+        public string $cpr = '',
+        public bool $employeeLogin = false,
         public dkMitIDLanguage $language = dkMitIDLanguage::Da,
-        public dkMitIDLevel    $level = dkMitIDLevel::Substantial,
-        public string          $referenceText = '',
-        public bool            $requestCPR = false,
-    )
-    {
+        public dkMitIDLevel $level = dkMitIDLevel::Substantial,
+        public string $referenceText = '',
+        public bool $requestCPR = false,
+    ) {
         if (!$this->referenceText) {
             $this->referenceText = config('scrive.reference-text');
         }
