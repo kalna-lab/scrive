@@ -13,6 +13,12 @@ abstract class CompletionData
     public string $providerName;
     public ?string $transactionId = null;
 
+    public function __construct()
+    {
+        $this->env = config('scrive.env') == 'live' ? 'live' : 'test';
+        $this->endpoint = config('scrive.' . $this->env . '.base-path');
+    }
+
     protected function instantiateCurl(): void
     {
         $this->headers = [
