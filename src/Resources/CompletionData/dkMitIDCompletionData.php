@@ -15,6 +15,7 @@ class dkMitIDCompletionData extends CompletionData
 
     public function validateCPR(string $cpr): bool
     {
+        $this->init();
         $this->endpoint .= $this->transactionId . '/dk/cpr-match';
         $this->httpMethod = 'POST';
 
