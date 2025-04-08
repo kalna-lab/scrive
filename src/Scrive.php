@@ -5,6 +5,7 @@ namespace KalnaLab\Scrive;
 use KalnaLab\Scrive\Events\NewScriveSignInEvent;
 use KalnaLab\Scrive\Resources\AuthProviders\Provider;
 use KalnaLab\Scrive\Resources\CompletionData\CompletionData;
+use Illuminate\Support\Facades\Log;
 
 class Scrive
 {
@@ -121,6 +122,7 @@ class Scrive
         }
         curl_close($this->curlObject);
 
+        Log::info('Scrive response: ' . $response);
         return json_decode($response);
     }
 }
