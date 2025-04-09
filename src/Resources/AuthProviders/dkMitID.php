@@ -25,7 +25,7 @@ class dkMitID extends Provider
         public bool $requestCPR = false,
     ) {
         if (!$this->referenceText) {
-            $this->referenceText = config('scrive.reference-text') ?: '-';
+            $this->referenceText = config('scrive.reference-text');
         }
     }
 
@@ -70,9 +70,8 @@ class dkMitID extends Provider
 
     public function toArray(): array
     {
-        return [
+        $array = [
             'action' => $this->action,
-            'cpr' => $this->cpr,
             'employeeLogin' => $this->employeeLogin,
             'language' => $this->language,
             'level' => $this->level,
@@ -80,19 +79,14 @@ class dkMitID extends Provider
             'requestCPR' => $this->requestCPR,
             'success' => $this->success,
         ];
+        if ($this->cpr) {
+            $array['cpr'] = $this->cpr;
+        }
+        return $array;
     }
 
     public function toJson(): string
     {
-        return json_encode([
-            'action' => $this->action,
-            'cpr' => $this->cpr,
-            'employeeLogin' => $this->employeeLogin,
-            'language' => $this->language,
-            'level' => $this->level,
-            'referenceText' => $this->referenceText,
-            'requestCPR' => $this->requestCPR,
-            'success' => $this->success,
-        ]);
+        return json_encode($this->toArray());
     }
 }
