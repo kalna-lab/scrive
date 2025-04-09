@@ -25,7 +25,7 @@ class dkMitID extends Provider
         public bool $requestCPR = false,
     ) {
         if (!$this->referenceText) {
-            $this->referenceText = config('scrive.reference-text');
+            $this->referenceText = config('scrive.reference-text') ?: '-';
         }
     }
 
