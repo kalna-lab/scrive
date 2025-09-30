@@ -17,10 +17,10 @@ return [
         'failed-path' => env('SCRIVE_FAILED_PATH', '/'),
         'reference-text' => env('SCRIVE_REFERENCE_TEXT', ''),
         'live' => [
-            'base-path' => env('SCRIVE_PATH', 'https://eid.scrive.com/api/v2/transaction/'),
+            'base-path' => env('SCRIVE_PATH', 'https://eid.scrive.com/api/v1/transaction/'),
         ],
         'test' => [
-            'base-path' => env('SCRIVE_TEST_PATH', 'https://testbed-eid.scrive.com/api/v2/transaction/'),
+            'base-path' => env('SCRIVE_TEST_PATH', 'https://testbed-eid.scrive.com/api/v1/transaction/'),
         ],
     ],
     'document' => [
