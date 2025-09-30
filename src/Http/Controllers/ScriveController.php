@@ -13,7 +13,7 @@ class ScriveController extends Controller
     public function dkMitID(Request $request): RedirectResponse
     {
         if ($request->session()->exists('ScriveCompletionData')) {
-            return redirect(config('scrive.landing-path'));
+            return redirect(config('scrive.auth.landing-path'));
         }
 
         $provider = new dkMitID();
@@ -31,9 +31,9 @@ class ScriveController extends Controller
         $transactionId = $request->get('transaction_id');
         $scrive = new Scrive();
         if ($scrive->authenticate($transactionId)) {
-            return redirect(config('scrive.landing-path'));
+            return redirect(config('scrive.auth.landing-path'));
         }
 
-        return redirect(config('scrive.failed-path'));
+        return redirect(config('scrive.auth.failed-path'));
     }
 }

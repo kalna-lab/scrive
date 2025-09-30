@@ -5,7 +5,7 @@ namespace KalnaLab\Scrive;
 use KalnaLab\Scrive\Events\NewScriveSignInEvent;
 use KalnaLab\Scrive\Resources\AuthProviders\Provider;
 
-class Scrive
+class ScriveDocument
 {
     const METHOD = [
         'AUTH' => 'auth',
@@ -22,36 +22,15 @@ class Scrive
     public function __construct()
     {
         $this->env = config('scrive.env') == 'live' ? 'live' : 'test';
-        $this->endpoint = config('scrive.auth.' . $this->env . '.base-path');
-    }
-
-    public function authorize(Provider $provider): string
-    {
-        $this->endpoint .= 'new';
-        $this->httpMethod = 'POST';
-
-        $this->instantiateCurl();
-
-        $this->body = [
-            'method' => self::METHOD['AUTH'],
-            'provider' => $provider::getProviderName(),
-            'providerParameters' => [
-                self::METHOD['AUTH'] => [$provider::getProviderName() => $provider->toArray()],
-            ],
-            'redirectUrl' => rtrim(config('app.url'), '/') . '/' . ltrim(config('scrive.auth.redirect-path'), '/'),
-        ];
-
-        $result = $this->executeCall();
-
-        return $result->accessUrl;
+        $this->endpoint = config('scrive.document.' . $this->env . '.base-path');
     }
 
     /**
      * @throws \Exception
      */
-    public function authenticate(string $transactionId): bool
+    public function newFromTemplate(string $documentId): bool
     {
-        $this->endpoint .= $transactionId;
+        $this->endpoint .= $documentId;
         $this->httpMethod = 'GET';
 
         $this->instantiateCurl();

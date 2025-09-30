@@ -17,5 +17,5 @@ use KalnaLab\Scrive\Http\Controllers\PostingController;
 
 
 Route::group(['middleware' => ['web', 'guest']], function () {
-    Route::get(config('scrive.redirect-path'), [ScriveController::class, 'authenticate'])->name('scrive.authenticate');
+    Route::get(config('scrive.auth.redirect-path'), [ScriveController::class, 'authenticate'])->name('scrive.authenticate');
 });
