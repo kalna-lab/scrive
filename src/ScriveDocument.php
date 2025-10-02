@@ -32,7 +32,7 @@ class ScriveDocument
     /**
      * @throws \Exception
      */
-    public function newFromTemplate(string $documentId): string
+    public function newFromTemplate(string $documentId): self
     {
         $this->endpoint = $this->baseEndpoint . 'newfromtemplate/' . $documentId;
         $this->httpMethod = 'POST';
@@ -47,7 +47,7 @@ class ScriveDocument
         return $this->documentId;
     }
 
-    public function update(array|string $name, array $values = []): void
+    public function update(array|string $name, array $values = []): self
     {
         $this->endpoint = $this->baseEndpoint . '/' . $this->documentId . '/update';
         $this->httpMethod = 'POST';
