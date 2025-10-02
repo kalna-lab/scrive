@@ -22,7 +22,7 @@ class Scrive
     public function __construct()
     {
         $this->env = config('scrive.env') == 'live' ? 'live' : 'test';
-        $this->endpoint = config('scrive.auth.' . $this->env . '.base-path');
+        $this->endpoint = rtrim(config('scrive.auth.' . $this->env . '.base-path'), '/') . '/api/v1/transaction/';
     }
 
     public function authorize(Provider $provider): string
