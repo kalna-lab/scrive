@@ -74,7 +74,7 @@ class Scrive
     public function instantiateCurl(): void
     {
         $this->headers = [
-            'Authorization' => 'Bearer ' . config('scrive.' . $this->env . '.token'),
+            'Authorization' => 'Bearer ' . config('scrive.auth.' . $this->env . '.token'),
         ];
 
         $this->curlObject = curl_init();
