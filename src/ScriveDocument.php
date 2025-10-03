@@ -44,12 +44,12 @@ class ScriveDocument
             $this->documentId = $this->documentJson->id;
         }
 
-        return $this->documentId;
+        return $this;
     }
 
     public function update(array|string $name, array $values = []): self
     {
-        $this->endpoint = $this->baseEndpoint . '/' . $this->documentId . '/update';
+        $this->endpoint = $this->baseEndpoint . $this->documentId . '/update';
         $this->httpMethod = 'POST';
 
         $firstName = '';
@@ -117,13 +117,13 @@ class ScriveDocument
         if (is_object($payload) && property_exists($payload, 'id')) {
             $this->documentJson = $payload;
         }
+        return $this;
     }
 
     public function getSignUrl(): ?string
     {
-        $this->endpoint = $this->baseEndpoint . '/' . $this->documentId . '/start';
+        $this->endpoint = $this->baseEndpoint . $this->documentId . '/start';
         $this->httpMethod = 'POST';
-        $this->body['strict_validations'] = true;
 
         try {
             $payload = $this->executeCall();
@@ -139,7 +139,6 @@ class ScriveDocument
 
         foreach ($documentJson->parties as $pIdx => $party) {
             if ($party->signatory_role == 'signing_party') {
-                Log::info(__METHOD__ . ' (' . __LINE__ . ')' . ' party:' . "\n" . json_encode($party, JSON_PRETTY_PRINT));
                 return rtrim(config('scrive.document.' . $this->env . '.base-path'), '/') . $party->api_delivery_url;
             }
         }
@@ -178,6 +177,7 @@ class ScriveDocument
             Log::error(__METHOD__ . ' (' . __LINE__ . ')' . "\n" . 'cURL Error: ' . curl_error($curlObject));
             throw new \Exception('cURL Error: ' . curl_error($curlObject));
         }
+
         $header_size = curl_getinfo($curlObject, CURLINFO_HEADER_SIZE);
         $headers = substr($response, 0, $header_size);
         $body = substr($response, $header_size);
@@ -202,7 +202,7 @@ class ScriveDocument
                     throw new \Exception('WWW-Authenticate: ' . $matches[1]);
                 }
                 Log::error(__METHOD__ . ' (' . __LINE__ . ')' . "\n" . 'Empty response ' . $body);
-                throw new \Exception('Empty response ' . $body);
+                throw new \Exception($httpStatus . ': Empty response ' . $body);
             }
         }
 
