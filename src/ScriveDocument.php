@@ -19,7 +19,7 @@ class ScriveDocument
 
     public function __construct()
     {
-        $this->env = config('scrive.env') == 'live' ? 'live' : 'test';
+        $this->env = config('scrive.document.env') == 'live' ? 'live' : 'test';
         $this->baseEndpoint = rtrim(config('scrive.document.' . $this->env . '.base-path'), '/') . '/api/v2/documents/';
         $this->headers = [
             'Authorization' => 'oauth_signature_method="PLAINTEXT",' .

@@ -6,6 +6,7 @@
 return [
     'env' => env('SCRIVE_ENV', 'live'),
     'auth' => [
+        'env' => env('SCRIVE_AUTH_ENV', env('SCRIVE_ENV', 'live')),
         'redirect-path' => env('SCRIVE_CALLBACK_PATH', '/login'),
         'landing-path' => env('SCRIVE_LANDING_PATH', '/'),
         'failed-path' => env('SCRIVE_FAILED_PATH', '/'),
@@ -20,6 +21,7 @@ return [
         ],
     ],
     'document' => [
+        'env' => env('SCRIVE_DOC_ENV', env('SCRIVE_ENV', 'live')),
         'callback-path' => env('SCRIVE_DOC_CALLBACK_PATH', '/'),
         'live' => [
             'api-token' => env('SCRIVE_API_TOKEN', ''),
