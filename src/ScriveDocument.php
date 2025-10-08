@@ -109,7 +109,23 @@ class ScriveDocument
             }
         }
 
-        $documentJson->api_callback_url = ''; //TODO: set callback url
+        $this->body['document'] = json_encode($documentJson);
+
+        $payload = $this->executeCall();
+
+        if (is_object($payload) && property_exists($payload, 'id')) {
+            $this->documentJson = $payload;
+        }
+        return $this;
+    }
+
+    public function setCallbackUrl(string $url): self
+    {
+        $this->endpoint = $this->baseEndpoint . $this->documentId . '/update';
+        $this->httpMethod = 'POST';
+
+        $documentJson = $this->documentJson;
+        $documentJson->api_callback_url = $url;
         $this->body['document'] = json_encode($documentJson);
 
         $payload = $this->executeCall();
