@@ -92,17 +92,23 @@ class ScriveDocument
                         continue;
                     }
                     if ($field->type == 'personal_number') {
-                        $documentJson->parties[$pIdx]->fields[$fIdx]->value = $values['personal_number'] ?? $values['cpr'] ?? '';
+                        $documentJson->parties[$pIdx]->fields[$fIdx]->value = (string)($values['personal_number'] ?? $values['cpr'] ?? '');
 
                         continue;
                     }
                     if ($field->type == 'company_number') {
-                        $documentJson->parties[$pIdx]->fields[$fIdx]->value = $values['company_number'] ?? $values['cvr'] ?? '';
+                        $documentJson->parties[$pIdx]->fields[$fIdx]->value = (string)($values['company_number'] ?? $values['cvr'] ?? '');
 
                         continue;
                     }
                     if (array_key_exists($field->name, $values)) {
-                        $documentJson->parties[$pIdx]->fields[$fIdx]->value = $values[$field->name];
+                        if ($field->type == 'text') {
+                            $documentJson->parties[$pIdx]->fields[$fIdx]->value = (string)$values[$field->name];
+                        } elseif ($field->type == 'multi_line_text') {
+                            $documentJson->parties[$pIdx]->fields[$fIdx]->value = (string)$values[$field->name];
+                        } else {
+                            $documentJson->parties[$pIdx]->fields[$fIdx]->value = $values[$field->name];
+                        }
                     }
                 }
                 $documentJson->parties[$pIdx]->delivery_method = 'api';
