@@ -28,7 +28,7 @@ return [
             'api-secret' => env('SCRIVE_API_SECRET', ''),
             'access-token' => env('SCRIVE_ACCESS_TOKEN', ''),
             'access-secret' => env('SCRIVE_ACCESS_SECRET', ''),
-            'base-path' => env('SCRIVE_BASE_PATH', 'https://api.scrive.com/'),
+            'base-path' => env('SCRIVE_BASE_PATH', 'https://scrive.com/'),
         ],
         'test' => [
             'api-token' => env('SCRIVE_TEST_API_TOKEN', ''),
