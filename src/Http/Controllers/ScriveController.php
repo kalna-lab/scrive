@@ -41,7 +41,7 @@ class ScriveController extends Controller
     {
         $intendedUrl = session('intended-url');
         if ($intendedUrl) {
-            return redirect($intendedUrl, config('scrive.auth.landing-path'));
+            return redirect($intendedUrl);
         }
         return redirect(config('scrive.auth.landing-path'));
     }
