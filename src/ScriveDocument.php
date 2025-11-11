@@ -101,7 +101,7 @@ class ScriveDocument
 
                         continue;
                     }
-                    if (array_key_exists($field->name, $values)) {
+                    if (property_exists($field, 'name') && array_key_exists($field->name, $values)) {
                         if ($field->type == 'text') {
                             $documentJson->parties[$pIdx]->fields[$fIdx]->value = (string)$values[$field->name];
                         } elseif ($field->type == 'multi_line_text') {
