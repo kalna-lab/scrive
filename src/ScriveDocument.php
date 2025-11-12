@@ -168,6 +168,30 @@ class ScriveDocument
         return null;
     }
 
+    public function getData(): ?string
+    {
+        $this->endpoint = $this->baseEndpoint . $this->documentId . '/get';
+        $this->httpMethod = 'GET';
+
+        try {
+            $payload = $this->executeCall();
+        } catch (\Exception $e) {
+            return null;
+        }
+
+        if (is_object($payload) && property_exists($payload, 'id')) {
+            return $payload;
+        }
+
+        return null;
+    }
+
+    public function getPdfUrl(string $documentId, ?string $fileName = null): string
+    {
+        $fileName ??= $documentId . '.pdf';
+        return $this->baseEndpoint . $this->documentId . '/files/main/' . $fileName;
+    }
+
     public function executeCall(): array|object
     {
         $postFields = http_build_query($this->body);
