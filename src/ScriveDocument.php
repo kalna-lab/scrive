@@ -168,9 +168,9 @@ class ScriveDocument
         return null;
     }
 
-    public function getData(): ?string
+    public function getData(string $documentId): ?string
     {
-        $this->endpoint = $this->baseEndpoint . $this->documentId . '/get';
+        $this->endpoint = $this->baseEndpoint . $documentId . '/get';
         $this->httpMethod = 'GET';
 
         try {
