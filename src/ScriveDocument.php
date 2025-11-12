@@ -189,7 +189,7 @@ class ScriveDocument
     public function getPdfUrl(string $documentId, ?string $fileName = null): string
     {
         $fileName ??= $documentId . '.pdf';
-        return $this->baseEndpoint . $this->documentId . '/files/main/' . $fileName;
+        return $this->baseEndpoint . $documentId . '/files/main/' . $fileName;
     }
 
     private function executeCall(): array|object
