@@ -192,7 +192,7 @@ class ScriveDocument
         return $this->baseEndpoint . $this->documentId . '/files/main/' . $fileName;
     }
 
-    public function executeCall(): array|object
+    private function executeCall(): array|object
     {
         $postFields = http_build_query($this->body);
         $headers = [];
