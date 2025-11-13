@@ -122,6 +122,7 @@ class ScriveDocument
         if (is_object($payload) && property_exists($payload, 'id')) {
             $this->documentJson = $payload;
         }
+
         return $this;
     }
 
@@ -139,7 +140,65 @@ class ScriveDocument
         if (is_object($payload) && property_exists($payload, 'id')) {
             $this->documentJson = $payload;
         }
+
         return $this;
+    }
+
+    public function setTitle(string $title): self
+    {
+        $this->endpoint = $this->baseEndpoint . $this->documentId . '/update';
+        $this->httpMethod = 'POST';
+
+        $documentJson = $this->documentJson;
+        $documentJson->title = $title;
+        $this->body['document'] = json_encode($documentJson);
+
+        $payload = $this->executeCall();
+
+        if (is_object($payload) && property_exists($payload, 'id')) {
+            $this->documentJson = $payload;
+        }
+
+        return $this;
+    }
+
+    public function setAttachment(string $attachmentFieldName, $filePath): void
+    {
+        $documentJson = $this->documentJson;
+        $signatory_id = null;
+
+        foreach ($documentJson->parties as $pIdx => $party) {
+            if ($party->signatory_role == 'signing_party') {
+                $signatory_id = $party->id;
+            }
+        }
+        $this->endpoint = $this->baseEndpoint . $this->documentId . '/' . $signatory_id . '/setattachment';
+        $this->httpMethod = 'POST';
+
+        $headers = [];
+        foreach ($this->headers as $key => $value) {
+            $headers[] = $key . ': ' . $value;
+        }
+        $curlObject = curl_init();
+        curl_setopt($curlObject, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($curlObject, CURLOPT_SSL_VERIFYHOST, false);
+        curl_setopt($curlObject, CURLOPT_MAXREDIRS, 10);
+        curl_setopt($curlObject, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($curlObject, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($curlObject, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+        curl_setopt($curlObject, CURLOPT_TIMEOUT, 30);
+        curl_setopt($curlObject, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($curlObject, CURLOPT_URL, $this->endpoint);
+        curl_setopt($curlObject, CURLOPT_CUSTOMREQUEST, 'POST');
+        curl_setopt($curlObject, CURLOPT_POSTFIELDS, ['name' => $attachmentFieldName, 'attachment' => new \CURLFile($filePath)]);
+        curl_setopt($curlObject, CURLOPT_VERBOSE, true);
+
+        $response = curl_exec($curlObject);
+        if ($response === false) {
+            curl_close($curlObject);
+            Log::error(__METHOD__ . ' (' . __LINE__ . ')' . "\n" . 'cURL Error: ' . curl_error($curlObject));
+            throw new \Exception('cURL Error: ' . curl_error($curlObject));
+        }
     }
 
     public function getSignUrl(): ?string
@@ -189,6 +248,7 @@ class ScriveDocument
     public function getPdfUrl(string $documentId, ?string $fileName = null): string
     {
         $fileName ??= $documentId . '.pdf';
+
         return $this->baseEndpoint . $documentId . '/files/main/' . $fileName;
     }
 
