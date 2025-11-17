@@ -167,6 +167,29 @@ class ScriveDocument
         return $this;
     }
 
+    public function setRejectRedirectUrl(string $url): self
+    {
+        $this->endpoint = $this->baseEndpoint . $this->documentId . '/update';
+        $this->httpMethod = 'POST';
+
+        $documentJson = $this->documentJson;
+
+        foreach ($documentJson->parties as $pIdx => $party) {
+            if ($party->signatory_role == 'signing_party') {
+                $party->reject_redirect_url = $url;
+            }
+        }
+        $this->body['document'] = json_encode($documentJson);
+
+        $payload = $this->executeCall();
+
+        if (is_object($payload) && property_exists($payload, 'id')) {
+            $this->documentJson = $payload;
+        }
+
+        return $this;
+    }
+
     public function setTitle(string $title): self
     {
         $this->endpoint = $this->baseEndpoint . $this->documentId . '/update';
