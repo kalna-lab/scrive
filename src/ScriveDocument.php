@@ -47,23 +47,27 @@ class ScriveDocument
         return $this;
     }
 
-    public function update(array|string $name, array $values = []): self
+    public function update(array $values = []): self
     {
         $this->endpoint = $this->baseEndpoint . $this->documentId . '/update';
         $this->httpMethod = 'POST';
 
         $firstName = '';
         $lastName = '';
-        $fullName = $name;
-        if (is_array($name)) {
-            $fullName = implode(' ', $name);
-        }
-        if (is_string($name)) {
-            $name = explode(' ', $name);
-        }
-        if (is_array($name)) {
-            $firstName = Arr::first($name);
-            $lastName = Arr::last($name);
+        $fullName = '';
+        if (array_key_exists('name', $values)) {
+            $name = $values['name'];
+            $fullName = $name;
+            if (is_array($name)) {
+                $fullName = implode(' ', $name);
+            }
+            if (is_string($name)) {
+                $name = explode(' ', $name);
+            }
+            if (is_array($name)) {
+                $firstName = Arr::first($name);
+                $lastName = Arr::last($name);
+            }
         }
 
         $documentJson = $this->documentJson;
