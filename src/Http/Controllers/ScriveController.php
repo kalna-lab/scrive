@@ -28,7 +28,7 @@ class ScriveController extends Controller
      */
     public function authenticate(Request $request): RedirectResponse
     {
-        $transactionId = $request->get('transaction_id');
+        $transactionId = $request->input('transaction_id');
         $scrive = new Scrive();
         if ($scrive->authenticate($transactionId)) {
             return $this->redirectSuccessfulAuth();
