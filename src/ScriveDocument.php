@@ -7,6 +7,10 @@ use Illuminate\Support\Facades\Log;
 
 class ScriveDocument
 {
+    public const SIGNATORY_ROLE = [
+        'viewer' => 'viewer',
+        'signing_party' => 'signing_party',
+    ];
     public string $documentId;
     public object $documentJson;
     public string $httpMethod = 'POST';
@@ -47,8 +51,11 @@ class ScriveDocument
         return $this;
     }
 
-    public function update(array $values = []): self
+    public function update(array $values = [], ?int $partyIndex = null, string $signatory_role = self::SIGNATORY_ROLE['signing_party']): self
     {
+        if (empty($values)) {
+            return $this;
+        }
         $this->endpoint = $this->baseEndpoint . $this->documentId . '/update';
         $this->httpMethod = 'POST';
 
@@ -72,8 +79,10 @@ class ScriveDocument
 
         $documentJson = $this->documentJson;
 
+        $partyFound = false;
         foreach ($documentJson->parties as $pIdx => $party) {
-            if ($party->signatory_role == 'signing_party') {
+            if ((is_null($partyIndex) && $party->signatory_role == $signatory_role) || (!is_null($partyIndex) && $partyIndex == $pIdx)) {
+                $partyFound = true;
                 foreach ($party->fields as $fIdx => $field) {
                     if ($field->type == 'name' && $field->order == 1) {
                         $documentJson->parties[$pIdx]->fields[$fIdx]->value = $firstName;
@@ -117,6 +126,9 @@ class ScriveDocument
                 }
                 $documentJson->parties[$pIdx]->delivery_method = 'api';
             }
+        }
+        if (!$partyFound) {
+            return $this;
         }
 
         $this->body['document'] = json_encode($documentJson);
