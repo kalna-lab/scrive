@@ -2,7 +2,6 @@
 
 namespace KalnaLab\Scrive;
 
-use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 
 class ScriveDocument
@@ -12,6 +11,7 @@ class ScriveDocument
         'viewer' => 'viewer',
         'signing_party' => 'signing_party',
     ];
+
     public string $documentId;
     public object $documentJson;
     public string $httpMethod = 'POST';
@@ -69,12 +69,17 @@ class ScriveDocument
             if (is_array($name)) {
                 $fullName = implode(' ', $name);
             }
-            if (is_string($name)) {
-                $name = explode(' ', $name);
-            }
-            if (is_array($name)) {
-                $firstName = Arr::first($name);
-                $lastName = Arr::last($name);
+            if (is_array($name) && count($name) == 2) {
+                $firstName = $name[0];
+                $lastName = $name[1];
+            } else {
+                if (is_string($name)) {
+                    $name = explode(' ', $name);
+                }
+                if (is_array($name)) {
+                    $lastName = array_pop($name);
+                    $firstName = implode(' ', $name);
+                }
             }
         }
 
