@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Log;
 
 class ScriveDocument
 {
-    public const SIGNATORY_ROLE = [
+    public const ROLE = [
         'author' => 'author',
         'viewer' => 'viewer',
         'signing_party' => 'signing_party',
@@ -52,7 +52,7 @@ class ScriveDocument
         return $this;
     }
 
-    public function update(array $values = [], ?int $partyIndex = null, string $signatory_role = self::SIGNATORY_ROLE['signing_party']): self
+    public function update(array $values = [], ?int $partyIndex = null, string $role = self::ROLE['signing_party']): self
     {
         if (empty($values)) {
             return $this;
@@ -82,8 +82,8 @@ class ScriveDocument
 
         $partyFound = false;
         foreach ($documentJson->parties as $pIdx => $party) {
-            if ((is_null($partyIndex) && $signatory_role == self::SIGNATORY_ROLE['author'] && $party->is_author) ||
-                (is_null($partyIndex) && $party->signatory_role == $signatory_role) ||
+            if (($role == self::ROLE['author'] && $party->is_author) ||
+                (is_null($partyIndex) && $party->signatory_role == $role) ||
                 (!is_null($partyIndex) && $partyIndex == $pIdx)) {
                 $partyFound = true;
                 foreach ($party->fields as $fIdx => $field) {
