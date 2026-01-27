@@ -317,16 +317,25 @@ class ScriveDocument
 
     public function getBase64Pdf(string $documentId): ?string
     {
-        $this->endpoint = $this->getPdfUrl($documentId);
-        $this->httpMethod = 'GET';
-
         try {
-            $binaryPdf = $this->executeCall(returnRawBody: true);
+            $binaryPdf = $this->getPdf($documentId);
         } catch (\Exception $e) {
             return null;
         }
 
         return base64_encode($binaryPdf);
+    }
+
+    public function getPdf(string $documentId): mixed
+    {
+        $this->endpoint = $this->getPdfUrl($documentId);
+        $this->httpMethod = 'GET';
+
+        try {
+            return $this->executeCall(returnRawBody: true);
+        } catch (\Exception $e) {
+            return null;
+        }
     }
 
     public function getPdfUrl(string $documentId, ?string $fileName = null): string
