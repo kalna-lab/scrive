@@ -336,7 +336,7 @@ class ScriveDocument
         return $this->baseEndpoint . $documentId . '/files/main/' . $fileName;
     }
 
-    private function executeCall(bool $expectBinary = false): array|object
+    private function executeCall(bool $expectBinary = false): array|object|null
     {
         $postFields = http_build_query($this->body);
         $headers = [];
