@@ -315,6 +315,20 @@ class ScriveDocument
         return null;
     }
 
+    public function getBase64Pdf(string $documentId): ?string
+    {
+        $this->endpoint = $this->getPdfUrl($documentId);
+        $this->httpMethod = 'GET';
+
+        try {
+            $binaryPdf = $this->executeCall(expectBinary: true);
+        } catch (\Exception $e) {
+            return null;
+        }
+
+        return base64_encode($binaryPdf);
+    }
+
     public function getPdfUrl(string $documentId, ?string $fileName = null): string
     {
         $fileName ??= $documentId . '.pdf';
@@ -322,7 +336,7 @@ class ScriveDocument
         return $this->baseEndpoint . $documentId . '/files/main/' . $fileName;
     }
 
-    private function executeCall(): array|object
+    private function executeCall(bool $expectBinary = false): array|object
     {
         $postFields = http_build_query($this->body);
         $headers = [];
@@ -330,15 +344,16 @@ class ScriveDocument
             $headers[] = $key . ': ' . $value;
         }
         $curlObject = curl_init();
-        curl_setopt($curlObject, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($curlObject, CURLOPT_SSL_VERIFYHOST, false);
-        curl_setopt($curlObject, CURLOPT_MAXREDIRS, 10);
-        curl_setopt($curlObject, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($curlObject, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($curlObject, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
-        curl_setopt($curlObject, CURLOPT_TIMEOUT, 30);
-        curl_setopt($curlObject, CURLOPT_HTTPHEADER, $headers);
-        curl_setopt($curlObject, CURLOPT_URL, $this->endpoint);
+        curl_setopt_array($curlObject, [
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HEADER => true,
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_URL => $this->endpoint,
+            CURLOPT_TIMEOUT => 30,
+        ]);
         if ($this->httpMethod === 'GET') {
             curl_setopt($curlObject, CURLOPT_CUSTOMREQUEST, $this->httpMethod);
         } elseif (in_array($this->httpMethod, ['POST', 'PATCH'])) {
@@ -354,11 +369,15 @@ class ScriveDocument
             throw new \Exception('cURL Error: ' . curl_error($curlObject));
         }
 
-        $header_size = curl_getinfo($curlObject, CURLINFO_HEADER_SIZE);
-        $headers = substr($response, 0, $header_size);
-        $body = substr($response, $header_size);
-        $httpStatus = curl_getinfo($curlObject, CURLINFO_RESPONSE_CODE) ?? null;
-        if ($httpStatus > 299) {
+        $headerSize  = curl_getinfo($curlObject, CURLINFO_HEADER_SIZE);
+        $rawHeaders  = substr($response, 0, $headerSize);
+        $body        = substr($response, $headerSize);
+        $statusCode  = curl_getinfo($curlObject, CURLINFO_RESPONSE_CODE);
+        $contentType = curl_getinfo($curlObject, CURLINFO_CONTENT_TYPE);
+
+        curl_close($curlObject);
+
+        if ($statusCode >= 300) {
             $curl_error = curl_error($curlObject);
 
             if ($curl_error) {
@@ -372,13 +391,13 @@ class ScriveDocument
             } else {
                 curl_close($curlObject);
                 // Find WWW-Authenticate header
-                preg_match('/WWW-Authenticate: (.+)/i', $headers, $matches);
+                preg_match('/WWW-Authenticate: (.+)/i', $rawHeaders, $matches);
                 if (isset($matches[1])) {
                     Log::error(__METHOD__ . ' (' . __LINE__ . ')' . "\n" . 'WWW-Authenticate: ' . $matches[1]);
                     throw new \Exception('WWW-Authenticate: ' . $matches[1]);
                 }
                 Log::error(__METHOD__ . ' (' . __LINE__ . ')' . "\n" . 'Empty response ' . $body);
-                throw new \Exception($httpStatus . ': Empty response ' . $body);
+                throw new \Exception($statusCode . ': Empty response ' . $body);
             }
         }
 
@@ -386,7 +405,10 @@ class ScriveDocument
             curl_close($curlObject);
             throw new \Exception('curl_error: ' . curl_error($curlObject) . ', curl_errno: ' . curl_errno($curlObject));
         }
-        curl_close($curlObject);
+        // 👇 Hvis vi forventer binær data (PDF)
+        if ($expectBinary || !str_contains((string)$contentType, 'application/json')) {
+            return $body; // raw binary
+        }
 
         return json_decode($response);
     }
