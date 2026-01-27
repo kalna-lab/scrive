@@ -368,13 +368,20 @@ class ScriveDocument
             curl_setopt($curlObject, CURLOPT_CUSTOMREQUEST, $this->httpMethod);
             curl_setopt($curlObject, CURLOPT_POSTFIELDS, $postFields);
         }
-        curl_setopt($curlObject, CURLOPT_VERBOSE, true);
+
+        if (!$returnRawBody) {
+            curl_setopt($curlObject, CURLOPT_VERBOSE, true);
+        }
 
         $response = curl_exec($curlObject);
         if ($response === false) {
             curl_close($curlObject);
             Log::error(__METHOD__ . ' (' . __LINE__ . ')' . "\n" . 'cURL Error: ' . curl_error($curlObject));
             throw new \Exception('cURL Error: ' . curl_error($curlObject));
+        }
+
+        if ($returnRawBody) {
+            return $response; // raw binary
         }
 
         $header_size = curl_getinfo($curlObject, CURLINFO_HEADER_SIZE);
@@ -405,10 +412,6 @@ class ScriveDocument
 
         if (empty($response)) {
             throw new \Exception('curl_error: ' . $curl_error);
-        }
-
-        if ($returnRawBody) {
-            return $body; // raw binary
         }
 
         return json_decode($response);
