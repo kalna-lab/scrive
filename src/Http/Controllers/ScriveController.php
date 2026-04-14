@@ -1,10 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace KalnaLab\Scrive\Http\Controllers;
 
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use KalnaLab\Scrive\Exceptions\ScriveException;
 use KalnaLab\Scrive\Resources\AuthProviders\dkMitID;
 use KalnaLab\Scrive\Scrive;
 
@@ -16,33 +19,36 @@ class ScriveController extends Controller
             return $this->redirectSuccessfulAuth();
         }
 
-        $provider = new dkMitID();
-        $scrive = new Scrive();
-        $accessUrl = $scrive->authorize($provider);
+        $accessUrl = (new Scrive)->authorize(new dkMitID);
 
         return redirect($accessUrl);
     }
 
-    /**
-     * @throws \Exception
-     */
     public function authenticate(Request $request): RedirectResponse
     {
-        $transactionId = $request->input('transaction_id');
-        $scrive = new Scrive();
-        if ($scrive->authenticate($transactionId)) {
-            return $this->redirectSuccessfulAuth();
+        $transactionId = (string)$request->input('transaction_id', '');
+        if ($transactionId === '') {
+            return redirect((string)config('scrive.auth.failed-path'));
         }
 
-        return redirect(config('scrive.auth.failed-path'));
+        try {
+            $success = (new Scrive)->authenticate($transactionId);
+        } catch (ScriveException) {
+            return redirect((string)config('scrive.auth.failed-path'));
+        }
+
+        return $success
+            ? $this->redirectSuccessfulAuth()
+            : redirect((string)config('scrive.auth.failed-path'));
     }
 
-    private function redirectSuccessfulAuth()
+    private function redirectSuccessfulAuth(): RedirectResponse
     {
         $intendedUrl = session('intended-url');
-        if ($intendedUrl) {
+        if (is_string($intendedUrl) && $intendedUrl !== '') {
             return redirect($intendedUrl);
         }
-        return redirect(config('scrive.auth.landing-path'));
+
+        return redirect((string)config('scrive.auth.landing-path'));
     }
 }

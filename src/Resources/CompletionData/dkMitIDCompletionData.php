@@ -1,41 +1,36 @@
 <?php
 
+declare(strict_types=1);
+
 namespace KalnaLab\Scrive\Resources\CompletionData;
 
 use Carbon\Carbon;
+use KalnaLab\Scrive\Exceptions\ScriveValidationException;
 use KalnaLab\Scrive\Scrive;
 
 class dkMitIDCompletionData extends CompletionData
 {
-    public ?string $cpr;
-    public ?Carbon $dateOfBirth;
-    public ?string $employeeData;
-    public ?string $ial;
-    public ?string $identityName;
-    public string $userId;
+    public ?string $cpr = null;
+    public ?Carbon $dateOfBirth = null;
+    public ?string $employeeData = null;
+    public ?string $ial = null;
+    public ?string $identityName = null;
+    public string $userId = '';
 
-    public function validateCPR(string $cpr): bool
+    /**
+     * Verify that the given CPR matches the one returned in the completed
+     * transaction. Delegates to {@see Scrive::validateCpr()}.
+     *
+     * @throws ScriveValidationException when the transactionId has not been set.
+     */
+    public function validateCPR(string $cpr, ?Scrive $scrive = null): bool
     {
-        $scriveApi = new Scrive();
-        $scriveApi->endpoint .= $this->transactionId . '/dk/cpr-match';
-        $scriveApi->httpMethod = 'POST';
-
-        $scriveApi->instantiateCurl();
-
-        $scriveApi->body = [
-            'cpr' => $cpr,
-        ];
-
-        $result = $scriveApi->executeCall();
-
-        if (property_exists($result, 'isMatch')) {
-            return $result->isMatch;
+        if ($this->transactionId === null) {
+            throw new ScriveValidationException('Cannot validate CPR without a transactionId');
         }
 
-        if (property_exists($result, 'err')) {
-            throw new \Exception($result->err);
-        }
+        $scrive ??= new Scrive;
 
-        return false;
+        return $scrive->validateCpr($this->transactionId, $cpr);
     }
 }

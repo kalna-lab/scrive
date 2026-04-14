@@ -1,125 +1,114 @@
 <?php
 
+declare(strict_types=1);
+
 namespace KalnaLab\Scrive;
 
+use Illuminate\Http\Client\Factory;
 use KalnaLab\Scrive\Events\NewScriveSignInEvent;
+use KalnaLab\Scrive\Exceptions\ScriveValidationException;
+use KalnaLab\Scrive\Http\ScriveHttpClient;
 use KalnaLab\Scrive\Resources\AuthProviders\Provider;
 
+/**
+ * Client for the Scrive eID API (https://eid.scrive.com/documentation/api/v1/).
+ *
+ * Handles the three-step authentication flow:
+ *
+ *   1. {@see authorize()} creates a new transaction and returns the URL
+ *      the user should be redirected to.
+ *   2. The user completes the flow in their browser and is redirected back
+ *      to the callback route with a `transaction_id`.
+ *   3. {@see authenticate()} exchanges the transaction id for the
+ *      completion data and dispatches {@see NewScriveSignInEvent}.
+ *
+ * Authentication uses a Bearer token configured in `config/scrive.php` under
+ * `auth.<env>.token`.
+ */
 class Scrive
 {
-    const METHOD = [
-        'AUTH' => 'auth',
-        'SIGN' => 'sign',
-    ];
+    private const API_PREFIX = '/api/v1/transaction/';
 
-    public string $httpMethod = 'POST';
-    public string $env = 'live';
-    public array $headers = [];
-    public array $body = [];
-    public \CurlHandle $curlObject;
-    public string $endpoint;
+    private readonly string $env;
+    private readonly ScriveHttpClient $client;
 
-    public function __construct()
+    public function __construct(?Factory $http = null)
     {
-        $this->env = config('scrive.auth.env') == 'live' ? 'live' : 'test';
-        $this->endpoint = rtrim(config('scrive.auth.' . $this->env . '.base-path'), '/') . '/api/v1/transaction/';
+        $this->env = config('scrive.auth.env') === 'live' ? 'live' : 'test';
+
+        $baseUrl = rtrim((string)config('scrive.auth.' . $this->env . '.base-path'), '/') . self::API_PREFIX;
+        $token = (string)config('scrive.auth.' . $this->env . '.token');
+
+        $this->client = new ScriveHttpClient(
+            http: $http ?? app(Factory::class),
+            baseUrl: $baseUrl,
+            authHeaders: ['Authorization' => 'Bearer ' . $token],
+        );
     }
 
+    /**
+     * Open a new eID transaction with the given provider and return the
+     * access URL the end user should be redirected to.
+     */
     public function authorize(Provider $provider): string
     {
-        $this->endpoint .= 'new';
-        $this->httpMethod = 'POST';
-
-        $this->instantiateCurl();
-
-        $this->body = [
-            'method' => self::METHOD['AUTH'],
+        $payload = [
+            'method' => 'auth',
             'provider' => $provider::getProviderName(),
             'providerParameters' => [
-                self::METHOD['AUTH'] => [$provider::getProviderName() => $provider->toArray()],
+                'auth' => [$provider::getProviderName() => $provider->toArray()],
             ],
-            'redirectUrl' => rtrim(config('app.url'), '/') . '/' . ltrim(config('scrive.auth.redirect-path'), '/'),
+            'redirectUrl' => rtrim((string)config('app.url'), '/')
+                . '/' . ltrim((string)config('scrive.auth.redirect-path'), '/'),
         ];
 
-        $result = $this->executeCall();
+        $result = $this->client->postJson('new', $payload);
+
+        if (!property_exists($result, 'accessUrl') || !is_string($result->accessUrl)) {
+            throw new ScriveValidationException('Scrive eID response missing accessUrl');
+        }
 
         return $result->accessUrl;
     }
 
     /**
-     * @throws \Exception
+     * Complete an eID transaction. Dispatches {@see NewScriveSignInEvent}
+     * on success. Returns whether the provider reports success.
      */
     public function authenticate(string $transactionId): bool
     {
-        $this->endpoint .= $transactionId;
-        $this->httpMethod = 'GET';
-
-        $this->instantiateCurl();
-
-        $payload = $this->executeCall();
+        $payload = $this->client->getJson($transactionId);
 
         $provider = Provider::parse($payload);
+
         if ($provider->success) {
             $provider->setTransactionId($transactionId);
-            NewScriveSignInEvent::dispatch($provider->completionData);
+            if ($provider->completionData !== null) {
+                NewScriveSignInEvent::dispatch($provider->completionData);
+            }
         }
 
         return $provider->success;
     }
 
-    public function sign()
+    /**
+     * Verify that a supplied CPR matches the one returned in the completed
+     * Danish MitID transaction. Scrive returns `{ isMatch: bool }` for the
+     * check endpoint, or `{ err: ... }` on failure.
+     */
+    public function validateCpr(string $transactionId, string $cpr): bool
     {
+        $result = $this->client->postJson($transactionId . '/dk/cpr-match', ['cpr' => $cpr]);
+
+        if (property_exists($result, 'err')) {
+            throw new ScriveValidationException('CPR match failed: ' . (string)$result->err);
+        }
+
+        return property_exists($result, 'isMatch') && $result->isMatch === true;
     }
 
-    public function instantiateCurl(): void
+    public function httpClient(): ScriveHttpClient
     {
-        $this->headers = [
-            'Authorization' => 'Bearer ' . config('scrive.auth.' . $this->env . '.token'),
-        ];
-
-        $this->curlObject = curl_init();
-        curl_setopt($this->curlObject, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($this->curlObject, CURLOPT_SSL_VERIFYHOST, false);
-        curl_setopt($this->curlObject, CURLOPT_MAXREDIRS, 10);
-        curl_setopt($this->curlObject, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($this->curlObject, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($this->curlObject, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
-        curl_setopt($this->curlObject, CURLOPT_TIMEOUT, 30);
-    }
-
-    public function setHeaders(array $body = []): void
-    {
-        $headers = [];
-        if ($body) {
-            $this->headers['Content-length'] = strlen(json_encode($body, JSON_UNESCAPED_SLASHES));
-            $this->headers['Content-Type'] = 'application/json';
-        }
-        foreach ($this->headers as $key => $value) {
-            $headers[] = $key . ': ' . $value;
-        }
-        curl_setopt($this->curlObject, CURLOPT_HTTPHEADER, $headers);
-    }
-
-    public function executeCall(): array|object
-    {
-        $this->setHeaders($this->body);
-        curl_setopt($this->curlObject, CURLOPT_URL, $this->endpoint);
-        if ($this->httpMethod === 'GET') {
-            curl_setopt($this->curlObject, CURLOPT_CUSTOMREQUEST, $this->httpMethod);
-        } elseif (in_array($this->httpMethod, ['POST', 'PATCH'])) {
-            curl_setopt($this->curlObject, CURLOPT_CUSTOMREQUEST, $this->httpMethod);
-            curl_setopt($this->curlObject, CURLOPT_POSTFIELDS, json_encode($this->body, JSON_UNESCAPED_SLASHES));
-        }
-        curl_setopt($this->curlObject, CURLOPT_VERBOSE, true);
-
-        $response = curl_exec($this->curlObject);
-
-        if (empty($response)) {
-            curl_close($this->curlObject);
-            throw new \Exception('curl_error: ' . curl_error($this->curlObject) . ', curl_errno: ' . curl_errno($this->curlObject));
-        }
-        curl_close($this->curlObject);
-
-        return json_decode($response);
+        return $this->client;
     }
 }

@@ -1,419 +1,413 @@
 <?php
 
+declare(strict_types=1);
+
 namespace KalnaLab\Scrive;
 
-use Illuminate\Support\Facades\Log;
+use Illuminate\Http\Client\Factory;
+use KalnaLab\Scrive\Exceptions\ScriveValidationException;
+use KalnaLab\Scrive\Http\ScriveHttpClient;
 
+/**
+ * Client for the Scrive document API v2 (https://apidocs.scrive.com/).
+ *
+ * Wraps the subset of endpoints needed for the template-based signing flow:
+ *
+ *   - Create a document from a template ({@see newFromTemplate()}).
+ *   - Populate signatory fields ({@see update()}).
+ *   - Configure callbacks, redirects and title.
+ *   - Attach a supporting PDF ({@see setAttachment()}).
+ *   - Start signing and produce a signing URL ({@see getSignUrl()}).
+ *   - Retrieve metadata and the final PDF.
+ *
+ * All public methods throw a {@see Exceptions\ScriveException}
+ * (or one of its subclasses) on failure. Previous versions returned `null` for
+ * several error paths; this is intentionally no longer the case.
+ *
+ * Authentication uses OAuth 1.0 PLAINTEXT as supported by Scrive's document
+ * API. Credentials are read from `config/scrive.php` under
+ * `document.<env>.{api-token,api-secret,access-token,access-secret}`.
+ */
 class ScriveDocument
 {
+    public const ROLE_AUTHOR = 'author';
+    public const ROLE_VIEWER = 'viewer';
+    public const ROLE_SIGNING_PARTY = 'signing_party';
+
+    /** @deprecated Use the ROLE_* class constants instead. Kept for backwards compatibility. */
     public const ROLE = [
-        'author' => 'author',
-        'viewer' => 'viewer',
-        'signing_party' => 'signing_party',
+        'author' => self::ROLE_AUTHOR,
+        'viewer' => self::ROLE_VIEWER,
+        'signing_party' => self::ROLE_SIGNING_PARTY,
     ];
 
-    public string $documentId;
-    public object $documentJson;
-    public string $httpMethod = 'POST';
-    public string $env = 'live';
-    public array $headers = [];
-    public array $body = [];
-    public \CurlHandle $curlObject;
-    public string $baseEndpoint;
-    public string $endpoint;
+    private readonly string $env;
+    private readonly string $baseUrl;
+    private readonly ScriveHttpClient $client;
+    private ?string $documentId = null;
+    private ?\stdClass $documentJson = null;
 
-    public function __construct()
+    public function __construct(?Factory $http = null)
     {
-        $this->env = config('scrive.document.env') == 'live' ? 'live' : 'test';
-        $this->baseEndpoint = rtrim(config('scrive.document.' . $this->env . '.base-path'), '/') . '/api/v2/documents/';
-        $this->headers = [
-            'Authorization' => 'oauth_signature_method="PLAINTEXT",' .
-                'oauth_consumer_key="' . config('scrive.document.' . $this->env . '.api-token') . '",' .
-                'oauth_token="' . config('scrive.document.' . $this->env . '.access-token') . '",' .
-                'oauth_signature="' . config('scrive.document.' . $this->env . '.api-secret') . '&' . config('scrive.document.' . $this->env . '.access-secret') . '"',
-        ];
+        $this->env = config('scrive.document.env') === 'live' ? 'live' : 'test';
+        $this->baseUrl = rtrim((string)config('scrive.document.' . $this->env . '.base-path'), '/') . '/api/v2/documents/';
+
+        $this->client = new ScriveHttpClient(
+            http: $http ?? app(Factory::class),
+            baseUrl: $this->baseUrl,
+            authHeaders: ['Authorization' => $this->buildOAuthHeader()],
+        );
     }
 
     /**
-     * @throws \Exception
+     * Create a new document from a template and load its JSON representation
+     * so subsequent methods can mutate it locally before sending `update`.
      */
     public function newFromTemplate(string $documentId): self
     {
-        $this->endpoint = $this->baseEndpoint . 'newfromtemplate/' . $documentId;
-        $this->httpMethod = 'POST';
+        $payload = $this->client->postForm('newfromtemplate/' . $documentId, []);
 
-        $payload = $this->executeCall();
-
-        if (is_object($payload) && property_exists($payload, 'id')) {
-            $this->documentJson = $payload;
-            $this->documentId = $this->documentJson->id;
-        }
+        $this->loadDocument($payload);
 
         return $this;
     }
 
-    public function update(array $values = [], ?int $partyIndex = null, string $role = self::ROLE['signing_party']): self
+    /**
+     * Populate signatory fields on the currently loaded document. Supports:
+     *
+     *   - `name` as `string` ("First Last") or `[first, last]` array.
+     *   - `email`, `personal_number` (aliased as `cpr`),
+     *     `company_number` (aliased as `cvr`).
+     *   - Arbitrary custom fields keyed by the Scrive field name.
+     *
+     * By default the signing party is updated. Pass `$role = self::ROLE_AUTHOR`
+     * to target the author, or a zero-based `$partyIndex` to target a specific
+     * party slot.
+     *
+     * @param  array<string, mixed>  $values
+     */
+    public function update(array $values = [], ?int $partyIndex = null, string $role = self::ROLE_SIGNING_PARTY): self
     {
-        if (empty($values)) {
+        if ($values === []) {
             return $this;
         }
-        $this->endpoint = $this->baseEndpoint . $this->documentId . '/update';
-        $this->httpMethod = 'POST';
 
-        $firstName = '';
-        $lastName = '';
-        $fullName = '';
-        if (array_key_exists('name', $values)) {
-            $name = $values['name'];
-            $fullName = $name;
-            if (is_array($name)) {
-                $fullName = implode(' ', $name);
-            }
-            if (is_array($name) && count($name) == 2) {
-                $firstName = $name[0];
-                $lastName = $name[1];
-            } else {
-                if (is_string($name)) {
-                    $name = explode(' ', $name);
-                }
-                if (is_array($name)) {
-                    $lastName = array_pop($name);
-                    $firstName = implode(' ', $name);
-                }
-            }
-        }
-
-        $documentJson = $this->documentJson;
-
+        $document = $this->requireDocument();
+        [$firstName, $lastName, $fullName] = $this->parseName($values['name'] ?? null);
         $partyFound = false;
-        foreach ($documentJson->parties as $pIdx => $party) {
-            if (($role == self::ROLE['author'] && $party->is_author) ||
-                (is_null($partyIndex) && $party->signatory_role == $role) ||
-                (!is_null($partyIndex) && $partyIndex == $pIdx)) {
-                $partyFound = true;
-                foreach ($party->fields as $fIdx => $field) {
-                    if ($field->type == 'name' && $field->order == 1) {
-                        $documentJson->parties[$pIdx]->fields[$fIdx]->value = $firstName;
 
-                        continue;
-                    }
-                    if ($field->type == 'name' && $field->order == 2) {
-                        $documentJson->parties[$pIdx]->fields[$fIdx]->value = $lastName;
-
-                        continue;
-                    }
-                    if ($field->type == 'full_name') {
-                        $documentJson->parties[$pIdx]->fields[$fIdx]->value = $fullName;
-
-                        continue;
-                    }
-                    if ($field->type == 'email') {
-                        $documentJson->parties[$pIdx]->fields[$fIdx]->value = $values['email'] ?? '';
-
-                        continue;
-                    }
-                    if ($field->type == 'personal_number') {
-                        $documentJson->parties[$pIdx]->fields[$fIdx]->value = (string)($values['personal_number'] ?? $values['cpr'] ?? '');
-
-                        continue;
-                    }
-                    if ($field->type == 'company_number') {
-                        $documentJson->parties[$pIdx]->fields[$fIdx]->value = (string)($values['company_number'] ?? $values['cvr'] ?? '');
-
-                        continue;
-                    }
-                    if (property_exists($field, 'name') && array_key_exists($field->name, $values)) {
-                        if ($field->type == 'text') {
-                            $documentJson->parties[$pIdx]->fields[$fIdx]->value = (string)$values[$field->name];
-                        } elseif ($field->type == 'multi_line_text') {
-                            $documentJson->parties[$pIdx]->fields[$fIdx]->value = (string)$values[$field->name];
-                        } else {
-                            $documentJson->parties[$pIdx]->fields[$fIdx]->value = $values[$field->name];
-                        }
-                    }
-                }
-                $documentJson->parties[$pIdx]->delivery_method = 'api';
+        foreach ($document->parties as $pIdx => $party) {
+            if (!$this->matchesParty($party, $pIdx, $partyIndex, $role)) {
+                continue;
             }
+
+            $partyFound = true;
+
+            foreach ($party->fields as $fIdx => $field) {
+                $newValue = $this->resolveFieldValue($field, $values, $firstName, $lastName, $fullName);
+                if ($newValue !== null) {
+                    $document->parties[$pIdx]->fields[$fIdx]->value = $newValue;
+                }
+            }
+
+            $document->parties[$pIdx]->delivery_method = 'api';
         }
+
         if (!$partyFound) {
             return $this;
         }
 
-        $this->body['document'] = json_encode($documentJson);
-
-        $payload = $this->executeCall();
-
-        if (is_object($payload) && property_exists($payload, 'id')) {
-            $this->documentJson = $payload;
-        }
+        $this->loadDocument(
+            $this->client->postForm($this->documentId . '/update', [
+                'document' => json_encode($document, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+            ])
+        );
 
         return $this;
     }
 
     public function setCallbackUrl(string $url): self
     {
-        $this->endpoint = $this->baseEndpoint . $this->documentId . '/update';
-        $this->httpMethod = 'POST';
+        $document = $this->requireDocument();
+        $document->api_callback_url = $url;
 
-        $documentJson = $this->documentJson;
-        $documentJson->api_callback_url = $url;
-        $this->body['document'] = json_encode($documentJson);
-
-        $payload = $this->executeCall();
-
-        if (is_object($payload) && property_exists($payload, 'id')) {
-            $this->documentJson = $payload;
-        }
-
-        return $this;
+        return $this->pushDocument($document);
     }
 
     public function setSuccessRedirectUrl(string $url): self
     {
-        $this->endpoint = $this->baseEndpoint . $this->documentId . '/update';
-        $this->httpMethod = 'POST';
-
-        $documentJson = $this->documentJson;
-
-        foreach ($documentJson->parties as $pIdx => $party) {
-            if ($party->signatory_role == 'signing_party') {
+        $document = $this->requireDocument();
+        foreach ($document->parties as $party) {
+            if (($party->signatory_role ?? null) === self::ROLE_SIGNING_PARTY) {
                 $party->sign_success_redirect_url = $url;
             }
         }
-        $this->body['document'] = json_encode($documentJson);
 
-        $payload = $this->executeCall();
-
-        if (is_object($payload) && property_exists($payload, 'id')) {
-            $this->documentJson = $payload;
-        }
-
-        return $this;
+        return $this->pushDocument($document);
     }
 
     public function setRejectRedirectUrl(string $url): self
     {
-        $this->endpoint = $this->baseEndpoint . $this->documentId . '/update';
-        $this->httpMethod = 'POST';
-
-        $documentJson = $this->documentJson;
-
-        foreach ($documentJson->parties as $pIdx => $party) {
-            if ($party->signatory_role == 'signing_party') {
+        $document = $this->requireDocument();
+        foreach ($document->parties as $party) {
+            if (($party->signatory_role ?? null) === self::ROLE_SIGNING_PARTY) {
                 $party->reject_redirect_url = $url;
             }
         }
-        $this->body['document'] = json_encode($documentJson);
 
-        $payload = $this->executeCall();
-
-        if (is_object($payload) && property_exists($payload, 'id')) {
-            $this->documentJson = $payload;
-        }
-
-        return $this;
+        return $this->pushDocument($document);
     }
 
     public function setTitle(string $title): self
     {
-        $this->endpoint = $this->baseEndpoint . $this->documentId . '/update';
-        $this->httpMethod = 'POST';
+        $document = $this->requireDocument();
+        $document->title = $title;
 
-        $documentJson = $this->documentJson;
-        $documentJson->title = $title;
-        $this->body['document'] = json_encode($documentJson);
+        return $this->pushDocument($document);
+    }
 
-        $payload = $this->executeCall();
+    /**
+     * Upload an attachment file to the signing party.
+     */
+    public function setAttachment(string $attachmentFieldName, string $filePath): void
+    {
+        $document = $this->requireDocument();
+        $signatoryId = null;
 
-        if (is_object($payload) && property_exists($payload, 'id')) {
-            $this->documentJson = $payload;
+        foreach ($document->parties as $party) {
+            if (($party->signatory_role ?? null) === self::ROLE_SIGNING_PARTY) {
+                $signatoryId = $party->id ?? null;
+                break;
+            }
         }
+
+        if ($signatoryId === null) {
+            throw new ScriveValidationException('No signing party found on document when uploading attachment');
+        }
+
+        $this->client->postMultipart(
+            path: $this->documentId . '/' . $signatoryId . '/setattachment',
+            fieldName: 'attachment',
+            filePath: $filePath,
+            attachmentName: $attachmentFieldName,
+        );
+    }
+
+    /**
+     * Start the signing process and return the signing URL for the
+     * signing party. Requires that `update()` has been called first.
+     */
+    public function getSignUrl(): string
+    {
+        $payload = $this->client->postForm($this->requireDocumentId() . '/start', []);
+        $this->loadDocument($payload);
+
+        foreach ($this->documentJson->parties as $party) {
+            if (($party->signatory_role ?? null) === self::ROLE_SIGNING_PARTY) {
+                if (!property_exists($party, 'api_delivery_url') || !is_string($party->api_delivery_url)) {
+                    throw new ScriveValidationException('Signing party missing api_delivery_url after starting document');
+                }
+
+                return rtrim((string)config('scrive.document.' . $this->env . '.base-path'), '/') . $party->api_delivery_url;
+            }
+        }
+
+        throw new ScriveValidationException('No signing party found on document after starting');
+    }
+
+    /**
+     * Fetch the full document JSON from Scrive.
+     */
+    public function getData(string $documentId): \stdClass
+    {
+        return $this->client->getJson($documentId . '/get');
+    }
+
+    /**
+     * Fetch the signed PDF as base64.
+     */
+    public function getBase64Pdf(string $documentId): string
+    {
+        return base64_encode($this->getPdf($documentId));
+    }
+
+    /**
+     * Fetch the signed PDF as raw binary.
+     */
+    public function getPdf(string $documentId): string
+    {
+        return $this->client->getRaw($this->pdfPath($documentId));
+    }
+
+    /**
+     * Build the URL used by Scrive to serve the signed PDF.
+     */
+    public function getPdfUrl(string $documentId, ?string $fileName = null): string
+    {
+        return $this->baseUrl . $this->pdfPath($documentId, $fileName);
+    }
+
+    public function documentId(): ?string
+    {
+        return $this->documentId;
+    }
+
+    public function document(): ?\stdClass
+    {
+        return $this->documentJson;
+    }
+
+    public function httpClient(): ScriveHttpClient
+    {
+        return $this->client;
+    }
+
+    private function pdfPath(string $documentId, ?string $fileName = null): string
+    {
+        $fileName ??= $documentId . '.pdf';
+
+        return $documentId . '/files/main/' . $fileName;
+    }
+
+    private function pushDocument(\stdClass $document): self
+    {
+        $this->loadDocument(
+            $this->client->postForm($this->requireDocumentId() . '/update', [
+                'document' => json_encode($document, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+            ])
+        );
 
         return $this;
     }
 
-    public function setAttachment(string $attachmentFieldName, $filePath): void
+    private function loadDocument(\stdClass $payload): void
     {
-        $documentJson = $this->documentJson;
-        $signatory_id = null;
-
-        foreach ($documentJson->parties as $pIdx => $party) {
-            if ($party->signatory_role == 'signing_party') {
-                $signatory_id = $party->id;
-            }
+        if (!property_exists($payload, 'id') || !is_string($payload->id)) {
+            throw new ScriveValidationException('Scrive document response missing id');
         }
-        $this->endpoint = $this->baseEndpoint . $this->documentId . '/' . $signatory_id . '/setattachment';
-        $this->httpMethod = 'POST';
-
-        $headers = [];
-        foreach ($this->headers as $key => $value) {
-            $headers[] = $key . ': ' . $value;
+        if (!property_exists($payload, 'parties') || !is_array($payload->parties)) {
+            throw new ScriveValidationException('Scrive document response missing parties');
         }
-        $curlObject = curl_init();
-        curl_setopt($curlObject, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($curlObject, CURLOPT_SSL_VERIFYHOST, false);
-        curl_setopt($curlObject, CURLOPT_MAXREDIRS, 10);
-        curl_setopt($curlObject, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($curlObject, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($curlObject, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
-        curl_setopt($curlObject, CURLOPT_TIMEOUT, 30);
-        curl_setopt($curlObject, CURLOPT_HTTPHEADER, $headers);
-        curl_setopt($curlObject, CURLOPT_URL, $this->endpoint);
-        curl_setopt($curlObject, CURLOPT_CUSTOMREQUEST, 'POST');
-        curl_setopt($curlObject, CURLOPT_POSTFIELDS, ['name' => $attachmentFieldName, 'attachment' => new \CURLFile($filePath)]);
-        curl_setopt($curlObject, CURLOPT_VERBOSE, true);
 
-        $response = curl_exec($curlObject);
-        if ($response === false) {
-            curl_close($curlObject);
-            Log::error(__METHOD__ . ' (' . __LINE__ . ')' . "\n" . 'cURL Error: ' . curl_error($curlObject));
-            throw new \Exception('cURL Error: ' . curl_error($curlObject));
-        }
+        $this->documentJson = $payload;
+        $this->documentId = $payload->id;
     }
 
-    public function getSignUrl(): ?string
+    private function requireDocument(): \stdClass
     {
-        $this->endpoint = $this->baseEndpoint . $this->documentId . '/start';
-        $this->httpMethod = 'POST';
-
-        try {
-            $payload = $this->executeCall();
-        } catch (\Exception $e) {
-            return null;
+        if ($this->documentJson === null) {
+            throw new ScriveValidationException('No document loaded – call newFromTemplate() first');
         }
 
-        if (is_object($payload) && property_exists($payload, 'id')) {
-            $this->documentJson = $payload;
+        return $this->documentJson;
+    }
+
+    private function requireDocumentId(): string
+    {
+        if ($this->documentId === null) {
+            throw new ScriveValidationException('No document loaded – call newFromTemplate() first');
         }
 
-        $documentJson = $this->documentJson;
+        return $this->documentId;
+    }
 
-        foreach ($documentJson->parties as $pIdx => $party) {
-            if ($party->signatory_role == 'signing_party') {
-                return rtrim(config('scrive.document.' . $this->env . '.base-path'), '/') . $party->api_delivery_url;
+    /**
+     * Decide whether a party matches the selectors passed to `update()`.
+     */
+    private function matchesParty(\stdClass $party, int $pIdx, ?int $partyIndex, string $role): bool
+    {
+        if ($partyIndex !== null) {
+            return $partyIndex === $pIdx;
+        }
+
+        if ($role === self::ROLE_AUTHOR) {
+            return ($party->is_author ?? false) === true;
+        }
+
+        return ($party->signatory_role ?? null) === $role;
+    }
+
+    /**
+     * Parse an incoming name value into [first, last, full].
+     *
+     * @return array{0: string, 1: string, 2: string}
+     */
+    private function parseName(mixed $name): array
+    {
+        if ($name === null) {
+            return ['', '', ''];
+        }
+
+        if (is_array($name)) {
+            $full = implode(' ', array_map('strval', $name));
+            if (count($name) === 2) {
+                return [(string)$name[0], (string)$name[1], $full];
             }
+            $parts = $name;
+        } elseif (is_string($name)) {
+            $full = $name;
+            $parts = explode(' ', $name);
+        } else {
+            return ['', '', ''];
+        }
+
+        $last = (string)array_pop($parts);
+        $first = implode(' ', $parts);
+
+        return [$first, $last, $full];
+    }
+
+    /**
+     * Compute the new value for a field based on the submitted values.
+     * Returns `null` when the field should not be changed.
+     *
+     * @param  array<string, mixed>  $values
+     */
+    private function resolveFieldValue(
+        \stdClass $field,
+        array $values,
+        string $firstName,
+        string $lastName,
+        string $fullName,
+    ): ?string {
+        $type = $field->type ?? null;
+        $order = $field->order ?? null;
+
+        if ($type === 'name' && $order === 1) {
+            return $firstName;
+        }
+        if ($type === 'name' && $order === 2) {
+            return $lastName;
+        }
+        if ($type === 'full_name') {
+            return $fullName;
+        }
+        if ($type === 'email') {
+            return (string)($values['email'] ?? '');
+        }
+        if ($type === 'personal_number') {
+            return (string)($values['personal_number'] ?? $values['cpr'] ?? '');
+        }
+        if ($type === 'company_number') {
+            return (string)($values['company_number'] ?? $values['cvr'] ?? '');
+        }
+
+        $customName = $field->name ?? null;
+        if (is_string($customName) && array_key_exists($customName, $values)) {
+            return (string)$values[$customName];
         }
 
         return null;
     }
 
-    public function getData(string $documentId): ?object
+    private function buildOAuthHeader(): string
     {
-        $this->endpoint = $this->baseEndpoint . $documentId . '/get';
-        $this->httpMethod = 'GET';
+        $prefix = 'scrive.document.' . ($this->env === 'live' ? 'live' : 'test') . '.';
 
-        try {
-            $payload = $this->executeCall();
-        } catch (\Exception $e) {
-            return null;
-        }
-
-        if (is_object($payload) && property_exists($payload, 'id')) {
-            return $payload;
-        }
-
-        return null;
-    }
-
-    public function getBase64Pdf(string $documentId): ?string
-    {
-        try {
-            $binaryPdf = $this->getPdf($documentId);
-        } catch (\Exception $e) {
-            return null;
-        }
-
-        return base64_encode($binaryPdf);
-    }
-
-    public function getPdf(string $documentId): mixed
-    {
-        $this->endpoint = $this->getPdfUrl($documentId);
-        $this->httpMethod = 'GET';
-
-        try {
-            return $this->executeCall(returnRawBody: true);
-        } catch (\Exception $e) {
-            return null;
-        }
-    }
-
-    public function getPdfUrl(string $documentId, ?string $fileName = null): string
-    {
-        $fileName ??= $documentId . '.pdf';
-
-        return $this->baseEndpoint . $documentId . '/files/main/' . $fileName;
-    }
-
-    private function executeCall(bool $returnRawBody = false): mixed
-    {
-        $postFields = http_build_query($this->body);
-        $headers = [];
-        foreach ($this->headers as $key => $value) {
-            $headers[] = $key . ': ' . $value;
-        }
-        $curlObject = curl_init();
-        curl_setopt($curlObject, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($curlObject, CURLOPT_SSL_VERIFYHOST, false);
-        curl_setopt($curlObject, CURLOPT_MAXREDIRS, 10);
-        curl_setopt($curlObject, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($curlObject, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($curlObject, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
-        curl_setopt($curlObject, CURLOPT_TIMEOUT, 30);
-        curl_setopt($curlObject, CURLOPT_HTTPHEADER, $headers);
-        curl_setopt($curlObject, CURLOPT_URL, $this->endpoint);
-        if ($this->httpMethod === 'GET') {
-            curl_setopt($curlObject, CURLOPT_CUSTOMREQUEST, $this->httpMethod);
-        } elseif (in_array($this->httpMethod, ['POST', 'PATCH'])) {
-            curl_setopt($curlObject, CURLOPT_CUSTOMREQUEST, $this->httpMethod);
-            curl_setopt($curlObject, CURLOPT_POSTFIELDS, $postFields);
-        }
-
-        if (!$returnRawBody) {
-            curl_setopt($curlObject, CURLOPT_VERBOSE, true);
-        }
-
-        $response = curl_exec($curlObject);
-        if ($response === false) {
-            curl_close($curlObject);
-            Log::error(__METHOD__ . ' (' . __LINE__ . ')' . "\n" . 'cURL Error: ' . curl_error($curlObject));
-            throw new \Exception('cURL Error: ' . curl_error($curlObject));
-        }
-
-        if ($returnRawBody) {
-            return $response; // raw binary
-        }
-
-        $header_size = curl_getinfo($curlObject, CURLINFO_HEADER_SIZE);
-        $headers = substr($response, 0, $header_size);
-        $body = substr($response, $header_size);
-        $httpStatus = curl_getinfo($curlObject, CURLINFO_RESPONSE_CODE) ?? null;
-        $curl_error = curl_error($curlObject);
-        curl_close($curlObject);
-        if ($httpStatus > 299) {
-
-            if ($curl_error) {
-                Log::error(__METHOD__ . ' (' . __LINE__ . ')' . "\n" . 'cURL Error: ' . $curl_error);
-                throw new \Exception('cURL Error: ' . $curl_error);
-            } elseif ($body && $response = json_decode($body)) {
-                Log::error(__METHOD__ . ' (' . __LINE__ . ')' . "\n" . 'Body Error: ' . $body);
-                throw new \Exception('Body Error: ' . $body);
-            } else {
-                // Find WWW-Authenticate header
-                preg_match('/WWW-Authenticate: (.+)/i', $headers, $matches);
-                if (isset($matches[1])) {
-                    Log::error(__METHOD__ . ' (' . __LINE__ . ')' . "\n" . 'WWW-Authenticate: ' . $matches[1]);
-                    throw new \Exception('WWW-Authenticate: ' . $matches[1]);
-                }
-                Log::error(__METHOD__ . ' (' . __LINE__ . ')' . "\n" . 'Empty response ' . $body);
-                throw new \Exception($httpStatus . ': Empty response ' . $body);
-            }
-        }
-
-        if (empty($response)) {
-            throw new \Exception('curl_error: ' . $curl_error);
-        }
-
-        return json_decode($response);
+        return 'oauth_signature_method="PLAINTEXT",'
+            . 'oauth_consumer_key="' . (string)config($prefix . 'api-token') . '",'
+            . 'oauth_token="' . (string)config($prefix . 'access-token') . '",'
+            . 'oauth_signature="' . (string)config($prefix . 'api-secret')
+            . '&' . (string)config($prefix . 'access-secret') . '"';
     }
 }

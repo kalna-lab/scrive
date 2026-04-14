@@ -1,9 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace KalnaLab\Scrive\Resources\AuthProviders;
 
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Log;
+use KalnaLab\Scrive\Exceptions\ScriveValidationException;
 use KalnaLab\Scrive\Resources\AuthProviders\Enums\dkMitIDAction;
 use KalnaLab\Scrive\Resources\AuthProviders\Enums\dkMitIDLanguage;
 use KalnaLab\Scrive\Resources\AuthProviders\Enums\dkMitIDLevel;
@@ -12,7 +14,7 @@ use KalnaLab\Scrive\Resources\CompletionData\dkMitIDCompletionData;
 
 class dkMitID extends Provider
 {
-    /** @var dkMitIDCompletionData */
+    /** @var dkMitIDCompletionData|null */
     public ?CompletionData $completionData = null;
 
     public function __construct(
@@ -24,8 +26,8 @@ class dkMitID extends Provider
         public string $referenceText = '',
         public bool $requestCPR = false,
     ) {
-        if (!$this->referenceText) {
-            $this->referenceText = config('scrive.auth.reference-text') ?: '-';
+        if ($this->referenceText === '') {
+            $this->referenceText = (string)config('scrive.auth.reference-text') ?: '-';
         }
     }
 
@@ -35,39 +37,46 @@ class dkMitID extends Provider
     }
 
     /**
-     * @throws \Exception
+     * @throws ScriveValidationException
      */
     public static function parse(object $payload): self
     {
-        if (!property_exists($payload->providerInfo, self::getProviderName())) {
-            throw new \Exception('No providerInfo found');
+        if (!property_exists($payload, 'providerInfo') || !property_exists($payload->providerInfo, self::getProviderName())) {
+            throw new ScriveValidationException('Scrive auth payload is missing providerInfo.' . self::getProviderName());
         }
 
-        $instance = new self();
-        $instance->completionData = new dkMitIDCompletionData();
+        $instance = new self;
+        $instance->completionData = new dkMitIDCompletionData;
         $instance->completionData->providerName = self::getProviderName();
 
-        if ($payload->status == 'failed') {
+        if (($payload->status ?? null) === 'failed') {
             return $instance;
         }
 
         try {
             $completionData = $payload->providerInfo->{self::getProviderName()}->completionData;
-            $instance->completionData->cpr = $completionData->cpr;
-            $instance->completionData->dateOfBirth = Carbon::parse($completionData->dateOfBirth);
-            $instance->completionData->employeeData = $completionData->employeeData;
-            $instance->completionData->ial = $completionData->ial;
-            $instance->completionData->identityName = $completionData->identityName;
-            $instance->completionData->userId = $completionData->userId;
+            $instance->completionData->cpr = $completionData->cpr ?? null;
+            $instance->completionData->dateOfBirth = isset($completionData->dateOfBirth)
+                ? Carbon::parse($completionData->dateOfBirth)
+                : null;
+            $instance->completionData->employeeData = $completionData->employeeData ?? null;
+            $instance->completionData->ial = $completionData->ial ?? null;
+            $instance->completionData->identityName = $completionData->identityName ?? null;
+            $instance->completionData->userId = (string)$completionData->userId;
             $instance->success = true;
-        } catch (\Exception $e) {
-            Log::error(__METHOD__ . ' (' . __LINE__ . '): ' . $e->getMessage() . "\nProviderName: " . self::getProviderName() . "\nPayload: " . json_encode($payload, JSON_PRETTY_PRINT));
-            throw new \Exception('No completionData found for ' . self::getProviderName());
+        } catch (\Throwable $e) {
+            throw new ScriveValidationException(
+                'Unable to parse completionData for ' . self::getProviderName() . ': ' . $e->getMessage(),
+                previous: $e,
+            );
         }
 
         return $instance;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(): array
     {
         $array = [
@@ -79,14 +88,15 @@ class dkMitID extends Provider
             'requestCPR' => $this->requestCPR,
             'success' => $this->success,
         ];
-        if ($this->cpr) {
+        if ($this->cpr !== '') {
             $array['cpr'] = $this->cpr;
         }
+
         return $array;
     }
 
     public function toJson(): string
     {
-        return json_encode($this->toArray());
+        return json_encode($this->toArray(), JSON_THROW_ON_ERROR);
     }
 }

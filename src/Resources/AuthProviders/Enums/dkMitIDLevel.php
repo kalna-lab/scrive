@@ -12,7 +12,6 @@ namespace KalnaLab\Scrive\Resources\AuthProviders\Enums;
  * AAL is calculated on the basis of the authenticators that are used, e.g. only using password would result
  * in a Low AAL, and using 2FA with MitID mobile application would result in Substantial or High.
  */
-
 enum dkMitIDLevel: string
 {
     case Low = 'Low';
