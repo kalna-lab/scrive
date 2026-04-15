@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+         failOnWarning="true"
+         failOnRisky="true"
+         cacheDirectory=".phpunit.cache">
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Feature">
+            <directory>tests/Feature</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>src</directory>
+        </include>
+    </source>
+    <php>
+        <env name="APP_ENV" value="testing"/>
+        <env name="SCRIVE_ENV" value="test"/>
+        <env name="SCRIVE_TEST_TOKEN" value="test-bearer-token"/>
+        <env name="SCRIVE_TEST_API_TOKEN" value="api-token"/>
+        <env name="SCRIVE_TEST_API_SECRET" value="api-secret"/>
+        <env name="SCRIVE_TEST_ACCESS_TOKEN" value="access-token"/>
+        <env name="SCRIVE_TEST_ACCESS_SECRET" value="access-secret"/>
+    </php>
+</phpunit>
