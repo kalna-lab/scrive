@@ -9,7 +9,7 @@ they were actually solving.
 
 ---
 
-## 2.0.0 — Unreleased
+## 2.0.0 — 2026-04-15
 
 Security, testability and error-handling overhaul. Recommended upgrade for
 every 1.x user.
