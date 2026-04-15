@@ -7,7 +7,7 @@ project adheres to [Semantic Versioning](https://semver.org/).
 Entries prior to 2.0.0 were reconstructed from the git history and may be
 terser than entries curated at release time.
 
-## [2.0.0] - Unreleased
+## [2.0.0] - 2026-04-15
 
 This release is a substantial rewrite focused on security, testability and
 error ergonomics. Public method signatures are largely preserved, but the
