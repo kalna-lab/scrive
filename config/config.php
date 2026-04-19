@@ -23,6 +23,10 @@ return [
     'document' => [
         'env' => env('SCRIVE_DOC_ENV', env('SCRIVE_ENV', 'live')),
         'callback-path' => env('SCRIVE_DOC_CALLBACK_PATH', '/'),
+        'callback' => [
+            'secret' => env('SCRIVE_CALLBACK_SECRET', ''),
+            'verify_against_api' => env('SCRIVE_CALLBACK_VERIFY', true),
+        ],
         'live' => [
             'api-token' => env('SCRIVE_API_TOKEN', ''),
             'api-secret' => env('SCRIVE_API_SECRET', ''),

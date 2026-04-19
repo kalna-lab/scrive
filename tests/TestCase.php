@@ -38,5 +38,7 @@ abstract class TestCase extends OrchestraTestCase
         $app['config']->set('scrive.document.test.access-token', 'access-token');
         $app['config']->set('scrive.document.test.access-secret', 'access-secret');
         $app['config']->set('scrive.document.test.base-path', 'https://docs.test.scrive.example/');
+        $app['config']->set('scrive.document.callback.secret', 'test-callback-secret');
+        $app['config']->set('scrive.document.callback.verify_against_api', true);
     }
 }

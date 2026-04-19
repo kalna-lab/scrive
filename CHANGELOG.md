@@ -7,6 +7,43 @@ project adheres to [Semantic Versioning](https://semver.org/).
 Entries prior to 2.0.0 were reconstructed from the git history and may be
 terser than entries curated at release time.
 
+## [2.1.0] - 2026-04-20
+
+Adds primitives for verifying inbound document callbacks from Scrive.
+The existing outbound surface (`setCallbackUrl()` et al.) is unchanged;
+consumers opt into the new behaviour route-by-route and at the call
+sites that build callback URLs.
+
+### Added
+
+- `scrive.callback` route middleware
+  (`KalnaLab\Scrive\Http\Middleware\VerifyScriveCallbackSecret`) that
+  verifies a shared-secret signature on inbound document callbacks using
+  a constant-time comparison. Fails closed when no secret is configured.
+- `KalnaLab\Scrive\Http\Requests\ScriveCallbackRequest` — a form request
+  that controllers type-hint to receive a pre-verified `\stdClass`
+  document via `$request->document()`. By default it fetches the
+  authoritative document from Scrive (verify-by-fetch) using the
+  `document_id` on the callback body.
+- `KalnaLab\Scrive\Events\ScriveDocumentCallbackReceived` — dispatched
+  automatically after the form request has resolved the document, so
+  listeners can observe callbacks without touching controllers.
+- `ScriveDocument::setVerifiedCallbackUrl(string $routeName, array $parameters = [])`
+  — convenience helper that builds a named-route URL with the
+  shared-secret baked in as the `signature` query parameter.
+- New config keys under `scrive.document.callback`:
+  - `secret` (env: `SCRIVE_CALLBACK_SECRET`) — the shared secret. Empty
+    by default, which causes every callback to be rejected.
+  - `verify_against_api` (env: `SCRIVE_CALLBACK_VERIFY`, default `true`)
+    — when `false`, the form request trusts `document_json` from the
+    body instead of re-fetching. Not recommended outside of tests.
+
+### Changed
+
+- `ScriveAuthenticationException` now implements `render()` so that
+  middleware-level failures surface as HTTP 401 responses. Catching the
+  exception inside the package continues to work as before.
+
 ## [2.0.0] - 2026-04-15
 
 This release is a substantial rewrite focused on security, testability and

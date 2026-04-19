@@ -134,6 +134,33 @@ class ScriveDocument
         return $this->pushDocument($document);
     }
 
+    /**
+     * Set `api_callback_url` to a named route, automatically appending the
+     * shared-secret signature expected by the `scrive.callback` middleware.
+     *
+     * The secret is read from `scrive.document.callback.secret`. If it is
+     * empty, {@see ScriveValidationException} is thrown — calling this
+     * method without a configured secret would produce a URL the middleware
+     * can never accept, which is always a bug at the call site.
+     *
+     * @param  array<string, mixed>  $parameters  Extra route parameters
+     */
+    public function setVerifiedCallbackUrl(string $routeName, array $parameters = []): self
+    {
+        $secret = (string)config('scrive.document.callback.secret', '');
+        if ($secret === '') {
+            throw new ScriveValidationException(
+                'Cannot build a verified callback URL: '
+                . 'scrive.document.callback.secret is empty. '
+                . 'Set the SCRIVE_CALLBACK_SECRET env var before calling setVerifiedCallbackUrl().',
+            );
+        }
+
+        $url = route($routeName, $parameters + ['signature' => $secret], absolute: true);
+
+        return $this->setCallbackUrl($url);
+    }
+
     public function setSuccessRedirectUrl(string $url): self
     {
         $document = $this->requireDocument();

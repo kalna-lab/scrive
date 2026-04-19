@@ -89,6 +89,87 @@ $signUrl = (new ScriveDocument())
 return redirect($signUrl);
 ```
 
+### Verifying incoming callbacks
+
+Scrive's document API v2 does not sign callback POSTs — they arrive at your
+endpoint as plain HTTP requests. Anyone who can reach your callback route can
+fabricate one. The package provides two primitives to close this gap:
+
+1. A `scrive.callback` middleware that checks a shared-secret signature on
+   the callback URL.
+2. A `ScriveCallbackRequest` form request that, once the signature is
+   verified, fetches the authoritative document from Scrive using the
+   `document_id` from the body (verify-by-fetch) and hands your controller
+   a trusted `\stdClass` instead of the untrusted request body.
+
+**Step 1 — configure a secret.** Pick a random ≥32-character opaque string
+and set it in your `.env`:
+
+```dotenv
+SCRIVE_CALLBACK_SECRET=replace-with-a-long-random-hex-string
+# optional: disable the verify-by-fetch round-trip (not recommended)
+# SCRIVE_CALLBACK_VERIFY=false
+```
+
+If `SCRIVE_CALLBACK_SECRET` is empty, the middleware rejects every request
+(fail-closed).
+
+**Step 2 — protect your callback routes.** Attach the `scrive.callback`
+middleware and type-hint `ScriveCallbackRequest` in the controller:
+
+```php
+use KalnaLab\Scrive\Http\Requests\ScriveCallbackRequest;
+
+Route::post('/callbacks/cancel-membership', CancelMembershipController::class)
+    ->middleware('scrive.callback')
+    ->name('scrive.cancel-membership');
+
+class CancelMembershipController
+{
+    public function __invoke(ScriveCallbackRequest $request): Response
+    {
+        $document = $request->document(); // verified \stdClass fetched from Scrive
+        // ... your business logic on the trusted payload
+        return response()->noContent();
+    }
+}
+```
+
+**Step 3 — build the callback URL with the signature baked in.** Replace
+`setCallbackUrl(route(...))` with `setVerifiedCallbackUrl($routeName)`:
+
+```php
+(new ScriveDocument())
+    ->newFromTemplate($templateId)
+    ->update($values)
+    ->setVerifiedCallbackUrl('scrive.cancel-membership')
+    ->setSuccessRedirectUrl(route('profile', ['scrive' => 'success']))
+    ->setRejectRedirectUrl(route('profile', ['scrive' => 'rejected']))
+    ->getSignUrl();
+```
+
+`setVerifiedCallbackUrl()` appends `?signature=<secret>` to the generated
+URL. Scrive stores the URL verbatim and plays it back on every callback,
+which is what the middleware matches against.
+
+**Passive listeners.** If you prefer an event-driven style — e.g. to log
+or audit every callback — listen for `ScriveDocumentCallbackReceived`:
+
+```php
+use KalnaLab\Scrive\Events\ScriveDocumentCallbackReceived;
+
+Event::listen(function (ScriveDocumentCallbackReceived $event) {
+    logger()->info('Scrive callback', [
+        'route' => $event->request->route()?->getName(),
+        'document_id' => $event->document->id,
+    ]);
+});
+```
+
+The event fires automatically after `ScriveCallbackRequest` has verified
+the signature and resolved the document, so listeners always see a trusted
+payload.
+
 ### Fetch a signed PDF
 
 ```php

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Route;
 use KalnaLab\Scrive\Exceptions\ScriveApiException;
 use KalnaLab\Scrive\Exceptions\ScriveValidationException;
 use KalnaLab\Scrive\ScriveDocument;
@@ -180,6 +181,43 @@ it('sets callback URL on the document', function () {
     $document = json_decode($parsed['document']);
 
     expect($document->api_callback_url)->toBe('https://app.test/hooks/scrive');
+});
+
+it('builds a verified callback URL with the configured signature', function () {
+    config(['scrive.document.callback.secret' => 'unit-test-secret']);
+
+    Route::post('/callbacks/member', fn () => 'ok')->name('callbacks.member');
+
+    Http::fakeSequence()
+        ->push(scrive_document('doc-verified'))
+        ->push(scrive_document('doc-verified'));
+
+    (new ScriveDocument)
+        ->newFromTemplate('tpl-verified')
+        ->setVerifiedCallbackUrl('callbacks.member');
+
+    $request = Http::recorded()[1][0];
+    parse_str($request->body(), $parsed);
+    $document = json_decode($parsed['document']);
+
+    expect($document->api_callback_url)
+        ->toContain('/callbacks/member')
+        ->toContain('signature=unit-test-secret');
+});
+
+it('throws when setVerifiedCallbackUrl is called without a configured secret', function () {
+    config(['scrive.document.callback.secret' => '']);
+
+    Route::post('/callbacks/member', fn () => 'ok')->name('callbacks.member');
+
+    Http::fake([
+        'docs.test.scrive.example/api/v2/documents/newfromtemplate/tpl-x' => Http::response(scrive_document('doc-x')),
+    ]);
+
+    $scrive = (new ScriveDocument)->newFromTemplate('tpl-x');
+
+    expect(fn () => $scrive->setVerifiedCallbackUrl('callbacks.member'))
+        ->toThrow(ScriveValidationException::class, 'scrive.document.callback.secret');
 });
 
 it('sets success and reject redirect URLs only on the signing party', function () {

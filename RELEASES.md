@@ -9,6 +9,72 @@ they were actually solving.
 
 ---
 
+## 2.1.0 — 2026-04-20
+
+Adds the missing half of document callbacks: **verifying incoming POSTs
+from Scrive**. Until now the package could only set the outbound
+`api_callback_url`; consumers had to roll their own authentication on the
+receiving side, and in practice most didn't. The API v2 does not sign
+callbacks, so the realistic protection is shared-secret plus
+verify-by-fetch — this release ships both as first-class primitives.
+
+### Highlights
+
+- **`scrive.callback` route middleware.** Attach it to any inbound
+  callback route; the middleware matches a `?signature=…` query parameter
+  against `SCRIVE_CALLBACK_SECRET` with a constant-time comparison. Fails
+  closed if the secret is empty.
+- **`ScriveCallbackRequest` form request.** Once the signature passes,
+  this form request uses the `document_id` on the body to fetch the
+  authoritative document from Scrive and exposes it to your controller as
+  a trusted `\stdClass`. Controllers no longer have to parse (and trust)
+  `document_json` from the POST body.
+- **`ScriveDocumentCallbackReceived` event.** Dispatched automatically
+  once the form request resolves the document, so audit loggers and other
+  passive consumers can observe callbacks without touching controllers.
+- **`setVerifiedCallbackUrl($routeName)` on `ScriveDocument`.** Drop-in
+  ergonomic replacement for `setCallbackUrl(route($routeName))` — it
+  appends the signature for you so Scrive stores the fully-authenticated
+  URL.
+
+### Adopting in an existing integration
+
+Three mechanical edits per callback flow:
+
+```diff
+  // 1. .env
++ SCRIVE_CALLBACK_SECRET=<32+ char random hex>
+
+  // 2. routes/web.php
+- Route::post('/callbacks/cancel-membership', CancelMembershipController::class)
+-     ->name('cancelMembershipCallback');
++ Route::post('/callbacks/cancel-membership', CancelMembershipController::class)
++     ->middleware('scrive.callback')
++     ->name('cancelMembershipCallback');
+
+  // 3. the call site that builds the callback URL
+- $scriveDocument->setCallbackUrl(route('cancelMembershipCallback'));
++ $scriveDocument->setVerifiedCallbackUrl('cancelMembershipCallback');
+
+  // 4. the controller
+- public function __invoke(Request $request): Response
+- {
+-     $doc = json_decode($request->input('document_json'));
++ public function __invoke(ScriveCallbackRequest $request): Response
++ {
++     $doc = $request->document();
+```
+
+This is additive — code that still uses plain `setCallbackUrl()` keeps
+working, it just remains unauthenticated. Migrate one route at a time.
+
+### Compatibility
+
+No breaking changes. Requires Laravel 11 or 12 and PHP 8.2+, unchanged
+from 2.0.
+
+---
+
 ## 2.0.0 — 2026-04-15
 
 Security, testability and error-handling overhaul. Recommended upgrade for

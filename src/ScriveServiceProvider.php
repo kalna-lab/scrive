@@ -4,13 +4,19 @@ declare(strict_types=1);
 
 namespace KalnaLab\Scrive;
 
+use Illuminate\Routing\Router;
 use Illuminate\Support\ServiceProvider;
+use KalnaLab\Scrive\Http\Middleware\VerifyScriveCallbackSecret;
 
 class ScriveServiceProvider extends ServiceProvider
 {
     public function boot(): void
     {
         $this->loadRoutesFrom(__DIR__ . '/routes.php');
+
+        /** @var Router $router */
+        $router = $this->app['router'];
+        $router->aliasMiddleware('scrive.callback', VerifyScriveCallbackSecret::class);
 
         if ($this->app->runningInConsole()) {
             $this->publishes([
