@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace KalnaLab\Scrive;
 
 use Illuminate\Http\Client\Factory;
+use Illuminate\Support\Facades\Log;
 use KalnaLab\Scrive\Events\NewScriveSignInEvent;
 use KalnaLab\Scrive\Exceptions\ScriveValidationException;
 use KalnaLab\Scrive\Http\ScriveHttpClient;
@@ -65,6 +66,7 @@ class Scrive
         $result = $this->client->postJson('new', $payload);
 
         if (!property_exists($result, 'accessUrl') || !is_string($result->accessUrl)) {
+            Log::error('Scrive eID response missing accessUrl' . "\n" . json_encode($result, JSON_PRETTY_PRINT));
             throw new ScriveValidationException('Scrive eID response missing accessUrl');
         }
 

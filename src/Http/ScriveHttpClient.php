@@ -8,6 +8,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\Log;
 use KalnaLab\Scrive\Exceptions\ScriveApiException;
 use KalnaLab\Scrive\Exceptions\ScriveAuthenticationException;
 use KalnaLab\Scrive\Exceptions\ScriveNetworkException;
@@ -190,6 +191,7 @@ class ScriveHttpClient
         }
 
         if ($status === 401 || $status === 403) {
+            Log::error(sprintf('Scrive API rejected credentials (HTTP %d)', $status) . "\n" . json_encode($response, JSON_PRETTY_PRINT));
             throw new ScriveAuthenticationException(
                 sprintf('Scrive API rejected credentials (HTTP %d)', $status),
                 $status,
