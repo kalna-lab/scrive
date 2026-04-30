@@ -66,7 +66,7 @@ class Scrive
         $result = $this->client->postJson('new', $payload);
 
         if (!property_exists($result, 'accessUrl') || !is_string($result->accessUrl)) {
-            Log::error('Scrive eID response missing accessUrl' . "\n" . json_encode($result, JSON_PRETTY_PRINT));
+            Log::error('Scrive eID response missing accessUrl' . "\n" . json_encode($payload, JSON_PRETTY_PRINT) . "\n" . json_encode($result, JSON_PRETTY_PRINT));
             throw new ScriveValidationException('Scrive eID response missing accessUrl');
         }
 
