@@ -114,6 +114,53 @@ class ScriveHttpClient
     }
 
     /**
+     * POST a multipart/form-data request with a file attached under an
+     * arbitrary field name plus arbitrary additional form fields. Used by
+     * Scrive endpoints whose multipart contract is not the
+     * setattachment-style "attachment + name" pair — most notably
+     * {@see ScriveDocument::newDocument()} which uploads the source PDF under
+     * the `file` field.
+     *
+     * @param  array<string, scalar>  $extraFields
+     *
+     * @throws ScriveApiException
+     * @throws ScriveAuthenticationException
+     * @throws ScriveNetworkException
+     * @throws ScriveValidationException
+     */
+    public function postMultipartFile(
+        string $path,
+        string $fieldName,
+        string $filePath,
+        ?string $fileName = null,
+        array $extraFields = [],
+    ): \stdClass {
+        if (!is_file($filePath) || !is_readable($filePath)) {
+            throw new ScriveValidationException("File not found or not readable: {$filePath}");
+        }
+
+        $handle = fopen($filePath, 'r');
+        if ($handle === false) {
+            throw new ScriveValidationException("Unable to open file: {$filePath}");
+        }
+
+        try {
+            $response = $this->send(
+                fn (PendingRequest $req) => $req
+                    ->attach($fieldName, $handle, $fileName ?? basename($filePath))
+                    ->asMultipart()
+                    ->post($this->url($path), $extraFields)
+            );
+        } finally {
+            if (is_resource($handle)) {
+                fclose($handle);
+            }
+        }
+
+        return $this->decodeJson($response);
+    }
+
+    /**
      * GET a resource and decode it as an object.
      *
      * @param  array<string, scalar>  $query

@@ -73,6 +73,41 @@ class ScriveDocument
     }
 
     /**
+     * Create a fresh document from a local PDF file via Scrive's
+     * `POST /api/v2/documents/new` endpoint, then load the resulting JSON so
+     * subsequent fluent methods ({@see update()}, {@see setTitle()},
+     * {@see setVerifiedCallbackUrl()}, {@see getSignUrl()}, ...) can mutate
+     * it before signing starts.
+     *
+     * Use this when the document to sign originates outside Scrive — e.g. a
+     * PDF rendered by the calling application — rather than from a template
+     * defined in the Scrive account.
+     *
+     * The resulting document is in `preparation` state and carries a single
+     * party (the API author). Call {@see update()} to populate signing-party
+     * fields once you have signatory details.
+     *
+     * @param  string       $pdfPath  Absolute filesystem path to the PDF
+     * @param  string|null  $title    Optional initial document title
+     */
+    public function newDocument(string $pdfPath, ?string $title = null): self
+    {
+        $payload = $this->client->postMultipartFile(
+            path: 'new',
+            fieldName: 'file',
+            filePath: $pdfPath,
+        );
+
+        $this->loadDocument($payload);
+
+        if ($title !== null && $title !== '') {
+            $this->setTitle($title);
+        }
+
+        return $this;
+    }
+
+    /**
      * Populate signatory fields on the currently loaded document. Supports:
      *
      *   - `name` as `string` ("First Last") or `[first, last]` array.

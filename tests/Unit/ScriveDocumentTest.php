@@ -351,3 +351,84 @@ it('rejects documents that are missing required fields', function () {
 
     (new ScriveDocument)->newFromTemplate('tpl-18');
 })->throws(ScriveValidationException::class, 'missing parties');
+
+it('creates a new document by uploading a PDF and stores the id', function () {
+    Http::fake([
+        'docs.test.scrive.example/api/v2/documents/new' => Http::response(scrive_document('doc-new-1')),
+    ]);
+
+    $tmp = tempnam(sys_get_temp_dir(), 'scrive-new-');
+    file_put_contents($tmp, '%PDF-fake');
+
+    try {
+        $scrive = (new ScriveDocument)->newDocument($tmp);
+    } finally {
+        @unlink($tmp);
+    }
+
+    expect($scrive->documentId())->toBe('doc-new-1');
+
+    $request = Http::recorded()[0][0];
+    expect($request->method())->toBe('POST')
+        ->and($request->url())->toEndWith('/documents/new')
+        ->and($request->header('Content-Type')[0])->toStartWith('multipart/form-data');
+});
+
+it('newDocument sets the title via setTitle when provided', function () {
+    Http::fakeSequence()
+        ->push(scrive_document('doc-new-2'))   // POST /documents/new
+        ->push(scrive_document('doc-new-2'));  // POST /documents/doc-new-2/update (from setTitle)
+
+    $tmp = tempnam(sys_get_temp_dir(), 'scrive-new-');
+    file_put_contents($tmp, '%PDF-fake');
+
+    try {
+        (new ScriveDocument)->newDocument($tmp, 'Forlig på sag 12345');
+    } finally {
+        @unlink($tmp);
+    }
+
+    $titleRequest = Http::recorded()[1][0];
+    parse_str($titleRequest->body(), $parsed);
+    $document = json_decode($parsed['document']);
+
+    expect($titleRequest->url())->toContain('/documents/doc-new-2/update')
+        ->and($document->title)->toBe('Forlig på sag 12345');
+});
+
+it('newDocument skips setTitle when title is null or empty', function () {
+    Http::fake([
+        'docs.test.scrive.example/api/v2/documents/new' => Http::response(scrive_document('doc-new-3')),
+    ]);
+
+    $tmp = tempnam(sys_get_temp_dir(), 'scrive-new-');
+    file_put_contents($tmp, '%PDF-fake');
+
+    try {
+        (new ScriveDocument)->newDocument($tmp, '');
+        (new ScriveDocument)->newDocument($tmp, null);
+    } finally {
+        @unlink($tmp);
+    }
+
+    Http::assertSentCount(2); // two newDocument calls, no update calls
+});
+
+it('newDocument throws when the PDF file does not exist', function () {
+    (new ScriveDocument)->newDocument('/no/such/file.pdf');
+})->throws(ScriveValidationException::class, 'not found or not readable');
+
+it('newDocument propagates ScriveApiException on HTTP errors', function () {
+    Http::fake([
+        '*' => Http::response('bad request', 400),
+    ]);
+
+    $tmp = tempnam(sys_get_temp_dir(), 'scrive-new-');
+    file_put_contents($tmp, '%PDF-fake');
+
+    try {
+        (new ScriveDocument)->newDocument($tmp);
+    } finally {
+        @unlink($tmp);
+    }
+})->throws(ScriveApiException::class);
